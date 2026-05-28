@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:local_auth/local_auth.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 
@@ -16,6 +17,60 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
   bool _isAttempting = false;
+  final LocalAuthentication _localAuth = LocalAuthentication();
+  bool _canCheckBiometrics = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometrics();
+  }
+
+  Future<void> _checkBiometrics() async {
+    bool canCheck = false;
+    try {
+      canCheck = await _localAuth.canCheckBiometrics || await _localAuth.isDeviceSupported();
+    } catch (e) {
+      debugPrint('Error checking biometrics: $e');
+    }
+    if (mounted) {
+      setState(() {
+        _canCheckBiometrics = canCheck;
+      });
+    }
+  }
+
+  Future<void> _autenticarConHuella() async {
+    bool authenticated = false;
+    try {
+      authenticated = await _localAuth.authenticate(
+        localizedReason: 'Usa tu huella para iniciar sesión',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error usando huella: $e');
+    }
+
+    if (authenticated && mounted) {
+      setState(() { _isAttempting = true; });
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final success = await authProvider.loginWithBiometrics();
+      if (mounted) {
+        setState(() { _isAttempting = false; });
+        if (!success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Error al iniciar sesión con huella'),
+              backgroundColor: AppTheme.error,
+            ),
+          );
+        }
+      }
+    }
+  }
 
   void _iniciarSesion() async {
     final username = _usernameCtrl.text.trim();
@@ -190,6 +245,23 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                         ),
                       ),
+                      if (_canCheckBiometrics) ...[
+                        const SizedBox(height: 24),
+                        const Text('O inicia sesión con', style: TextStyle(color: AppTheme.textLight)),
+                        const SizedBox(height: 16),
+                        InkWell(
+                          onTap: _autenticarConHuella,
+                          borderRadius: BorderRadius.circular(50),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppTheme.primary.withOpacity(0.1),
+                            ),
+                            child: const Icon(Icons.fingerprint, size: 48, color: AppTheme.primary),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

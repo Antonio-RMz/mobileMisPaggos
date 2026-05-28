@@ -4,6 +4,7 @@ class Abono {
   String id;
   String clienteId;
   String? ticketId; // Si es null, es un abono general a la cuenta
+  String? repartidorId; // Agregado para saber qué repartidor cobró este efectivo
   double monto;
   Timestamp? fecha;
   String createBy;
@@ -15,6 +16,7 @@ class Abono {
     this.id = '',
     required this.clienteId,
     this.ticketId,
+    this.repartidorId,
     required this.monto,
     this.fecha,
     this.createBy = 'Sistema',
@@ -28,6 +30,7 @@ class Abono {
       id: id,
       clienteId: data['clienteId'] ?? '',
       ticketId: data['ticketId'],
+      repartidorId: data['repartidorId'],
       monto: (data['monto'] ?? 0).toDouble(),
       fecha: data['fecha'],
       createBy: data['createBy'] ?? '',
@@ -41,6 +44,7 @@ class Abono {
     return {
       'clienteId': clienteId,
       'ticketId': ticketId,
+      'repartidorId': repartidorId,
       'monto': monto,
       'fecha': fecha,
       'createBy': createBy,

@@ -267,6 +267,75 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
     );
   }
 
+  Future<void> _mostrarDialogoCancelacion(Ticket ticket) async {
+    final TextEditingController motivoCtrl = TextEditingController();
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Cancelar Pedido', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.error)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('¿Estás seguro de que deseas cancelar este pedido? Se descontará la deuda del cliente y no se entregará la mercancía.'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: motivoCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Motivo de Cancelación (Requerido)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
+              ),
+            ],
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Atrás', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+              onPressed: () {
+                if (motivoCtrl.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, escribe un motivo de cancelación.'), backgroundColor: Colors.orange));
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
+              child: const Text('Cancelar Pedido', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      if (mounted) showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+      
+      try {
+        await _firebaseService.cancelarPedido(ticket, motivoCtrl.text.trim());
+        
+        setState(() {
+          widget.cliente.deudaTotal -= ticket.saldoRestante;
+        });
+
+        if (mounted) {
+          Navigator.pop(context); // Cierra loading
+          OverlayHelper.showSuccess(context, message: 'Pedido Cancelado Exitosamente');
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.pop(context); // Cierra loading
+          OverlayHelper.showError(context, message: 'Error: $e');
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -432,8 +501,10 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                           children: [
                             const SizedBox(height: 4),
                             Text(fechaStr, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            if (!pagado)
+                            if (!pagado && t.estadoEntrega != 'Cancelado')
                               Text('Resta: ${_currencyFormat.format(t.saldoRestante)}', style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold)),
+                            if (t.estadoEntrega == 'Cancelado')
+                              Text('Cancelado: ${t.motivoCancelacion}', style: const TextStyle(fontSize: 12, color: Colors.red, fontStyle: FontStyle.italic)),
                           ],
                         ),
                         children: [
@@ -482,16 +553,23 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                   children: [
-                                    if (!pagado)
+                                    if (!pagado && t.estadoEntrega != 'Cancelado')
                                       ElevatedButton.icon(
                                         icon: const Icon(Icons.payment, size: 16, color: Colors.white),
                                         label: const Text('Abonar', style: TextStyle(color: Colors.white)),
                                         onPressed: () => _mostrarDialogoAbonoEspecifico(t),
                                         style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
                                       ),
+                                    if (t.estadoEntrega == 'Pendiente')
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.cancel_outlined, size: 16, color: AppTheme.error),
+                                        label: const Text('Cancelar', style: TextStyle(color: AppTheme.error)),
+                                        onPressed: () => _mostrarDialogoCancelacion(t),
+                                        style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.error)),
+                                      ),
                                     OutlinedButton.icon(
                                       icon: const Icon(Icons.share, size: 16, color: AppTheme.primary),
-                                      label: const Text('Compartir PDF', style: TextStyle(color: AppTheme.primary)),
+                                      label: const Text('PDF', style: TextStyle(color: AppTheme.primary)),
                                       onPressed: () {
                                         PdfService.imprimirTicket(t);
                                       },

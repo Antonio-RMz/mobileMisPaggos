@@ -36,9 +36,10 @@ class _ProductoFormModalState extends State<ProductoFormModal> {
       _observacionesCtrl.text = widget.producto!.observaciones;
       _selectedCategoria = widget.producto!.categoria;
       if (!_categorias.contains(_selectedCategoria)) {
-        _categorias.add(_selectedCategoria);
+        _categorias.insert(0, _selectedCategoria);
       }
     }
+    _categorias.add('Nueva Categoría...');
   }
 
   @override
@@ -261,8 +262,23 @@ class _ProductoFormModalState extends State<ProductoFormModal> {
                           child: Text(cat, style: const TextStyle(color: AppTheme.textDark)),
                         );
                       }).toList(),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
+                      onChanged: (String? newValue) async {
+                        if (newValue == 'Nueva Categoría...') {
+                          final nueva = await _mostrarDialogoNuevaCategoria();
+                          if (nueva != null && nueva.trim().isNotEmpty) {
+                            setState(() {
+                              _categorias.insert(_categorias.length - 1, nueva.trim());
+                              _selectedCategoria = nueva.trim();
+                            });
+                          } else {
+                            // Si cancela, regresamos al valor anterior o 'General'
+                            setState(() {
+                              if (!_categorias.contains(_selectedCategoria)) {
+                                _selectedCategoria = 'General';
+                              }
+                            });
+                          }
+                        } else if (newValue != null) {
                           setState(() {
                             _selectedCategoria = newValue;
                           });
@@ -291,6 +307,35 @@ class _ProductoFormModalState extends State<ProductoFormModal> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<String?> _mostrarDialogoNuevaCategoria() {
+    final TextEditingController ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Nueva Categoría'),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Nombre de la categoría',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, ctrl.text),
+              child: const Text('Agregar'),
+            ),
+          ],
+        );
+      },
     );
   }
 

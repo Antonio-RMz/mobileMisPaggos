@@ -49,6 +49,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 30),
                 _buildMetricsCards(context),
                 const SizedBox(height: 30),
+                _buildDeliveryStatus(context),
+                const SizedBox(height: 30),
                 Text(
                   'Atención Prioritaria (Top Morosos)',
                   style: TextStyle(
@@ -59,6 +61,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 15),
                 _buildTopMorososList(context),
+                const SizedBox(height: 30),
+                _buildTopProducts(context),
               ],
             ),
           ),
@@ -265,6 +269,167 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildDeliveryStatus(BuildContext context) {
+    return Consumer<DashboardProvider>(
+      builder: (context, dashboard, child) {
+        if (dashboard.isLoading) return const SizedBox();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Estado de Envíos (Hoy)',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+                ),
+                Icon(LucideIcons.truck, color: AppTheme.primary),
+              ],
+            ),
+            const SizedBox(height: 15),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatusCard(
+                    title: 'En Reparto',
+                    count: dashboard.entregasEnReparto,
+                    color: Colors.orange,
+                    icon: LucideIcons.packageOpen,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildStatusCard(
+                    title: 'Enviados',
+                    count: dashboard.entregasEnviadas,
+                    color: AppTheme.success,
+                    icon: LucideIcons.checkCircle2,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildStatusCard(
+                    title: 'Cancelados',
+                    count: dashboard.entregasCanceladas,
+                    color: AppTheme.error,
+                    icon: LucideIcons.xCircle,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStatusCard({required String title, required int count, required Color color, required IconData icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(
+            count.toString(),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textLight),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopProducts(BuildContext context) {
+    return Consumer<DashboardProvider>(
+      builder: (context, dashboard, child) {
+        if (dashboard.isLoading) return const SizedBox();
+        
+        final carnes = dashboard.topProductosCarnes.entries.toList();
+        final catalogo = dashboard.topProductosCatalogo.entries.toList();
+
+        if (carnes.isEmpty && catalogo.isEmpty) return const SizedBox();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Productos Más Vendidos',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+            ),
+            const SizedBox(height: 15),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (carnes.isNotEmpty)
+                  Expanded(
+                    child: _buildProductList('Carnicería', carnes, Colors.redAccent),
+                  ),
+                if (carnes.isNotEmpty && catalogo.isNotEmpty) const SizedBox(width: 16),
+                if (catalogo.isNotEmpty)
+                  Expanded(
+                    child: _buildProductList('Catálogo', catalogo, AppTheme.primary),
+                  ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildProductList(String title, List<MapEntry<String, double>> items, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(title == 'Carnicería' ? Icons.set_meal : Icons.inventory_2, color: color, size: 20),
+              const SizedBox(width: 8),
+              Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...items.map((entry) => Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: Text(entry.key, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Text('${entry.value.toStringAsFixed(1)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          )).toList(),
+        ],
       ),
     );
   }

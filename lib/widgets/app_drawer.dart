@@ -8,6 +8,7 @@ import '../screens/main_screen.dart';
 import '../screens/support_screen.dart';
 import '../screens/user_profile_screen.dart';
 import '../providers/auth_provider.dart';
+import '../screens/personal_list_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -135,12 +136,24 @@ class AppDrawer extends StatelessWidget {
                 _buildDrawerItem(
                   context: context,
                   icon: LucideIcons.barChart2,
-                  title: 'Estadísticas y Reportes',
+                  title: 'Reportes',
                   onTap: () {
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 3)),
                       (route) => false,
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  context: context,
+                  icon: Icons.badge_outlined,
+                  title: 'Personal (Empleados)',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PersonalListScreen()),
                     );
                   },
                 ),

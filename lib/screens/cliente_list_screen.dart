@@ -314,7 +314,6 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
     final IconData tiempoIcon = tieneDeuda ? LucideIcons.alertTriangle : LucideIcons.checkCircle;
 
     return Card(
-      elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),

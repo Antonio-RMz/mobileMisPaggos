@@ -11,6 +11,9 @@ class Cliente {
   String correo;
   String telefono;
   String observaciones;
+  String direccion;
+  String apodo;
+  String referenciasDireccion;
   double deudaTotal;
   String createBy;
   Timestamp? createAt;
@@ -26,6 +29,9 @@ class Cliente {
     required this.correo,
     required this.telefono,
     required this.observaciones,
+    this.direccion = '',
+    this.apodo = '',
+    this.referenciasDireccion = '',
     this.deudaTotal = 0.0,
     this.createBy = 'Admin',
     this.createAt,
@@ -46,6 +52,9 @@ class Cliente {
       correo: data['correo'] ?? '',
       telefono: data['telefono'] ?? '',
       observaciones: data['observaciones'] ?? '',
+      direccion: data['direccion'] ?? '',
+      apodo: data['apodo'] ?? '',
+      referenciasDireccion: data['referenciasDireccion'] ?? '',
       deudaTotal: (data['deuda_total'] ?? 0).toDouble(),
       createBy: data['createBy'] ?? '',
       createAt: data['createAt'],
@@ -64,6 +73,9 @@ class Cliente {
       'correo': correo,
       'telefono': telefono,
       'observaciones': observaciones,
+      'direccion': direccion,
+      'apodo': apodo,
+      'referenciasDireccion': referenciasDireccion,
       'deuda_total': deudaTotal,
       'createBy': createBy,
       'createAt': createAt,

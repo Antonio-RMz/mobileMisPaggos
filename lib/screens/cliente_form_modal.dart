@@ -23,6 +23,9 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
   final TextEditingController _telefonoCtrl = TextEditingController();
   final TextEditingController _correoCtrl = TextEditingController();
   final TextEditingController _observacionesCtrl = TextEditingController();
+  final TextEditingController _direccionCtrl = TextEditingController();
+  final TextEditingController _apodoCtrl = TextEditingController();
+  final TextEditingController _referenciasDireccionCtrl = TextEditingController();
 
   bool _isSaving = false;
 
@@ -37,6 +40,9 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
       _telefonoCtrl.text = widget.cliente!.telefono;
       _correoCtrl.text = widget.cliente!.correo;
       _observacionesCtrl.text = widget.cliente!.observaciones;
+      _direccionCtrl.text = widget.cliente!.direccion;
+      _apodoCtrl.text = widget.cliente!.apodo;
+      _referenciasDireccionCtrl.text = widget.cliente!.referenciasDireccion;
     }
   }
 
@@ -49,6 +55,9 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
     _telefonoCtrl.dispose();
     _correoCtrl.dispose();
     _observacionesCtrl.dispose();
+    _direccionCtrl.dispose();
+    _apodoCtrl.dispose();
+    _referenciasDireccionCtrl.dispose();
     super.dispose();
   }
 
@@ -68,6 +77,9 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
             correo: _correoCtrl.text.trim(),
             telefono: _telefonoCtrl.text.trim(),
             observaciones: _observacionesCtrl.text.trim(),
+            direccion: _direccionCtrl.text.trim(),
+            apodo: _apodoCtrl.text.trim(),
+            referenciasDireccion: _referenciasDireccionCtrl.text.trim(),
           );
           await _firebaseService.addCliente(nuevoCliente);
         } else {
@@ -78,6 +90,9 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
           widget.cliente!.correo = _correoCtrl.text.trim();
           widget.cliente!.telefono = _telefonoCtrl.text.trim();
           widget.cliente!.observaciones = _observacionesCtrl.text.trim();
+          widget.cliente!.direccion = _direccionCtrl.text.trim();
+          widget.cliente!.apodo = _apodoCtrl.text.trim();
+          widget.cliente!.referenciasDireccion = _referenciasDireccionCtrl.text.trim();
           await _firebaseService.updateCliente(widget.cliente!);
         }
 
@@ -245,46 +260,27 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
                       hintText: 'Información adicional...',
                       icon: Icons.notes,
                     ),
-                    const SizedBox(height: 24),
+                    _buildLabel('Apodo'),
+                    _buildTextField(
+                      controller: _apodoCtrl,
+                      hintText: 'Ej. Alex',
+                      icon: Icons.person_pin,
+                    ),
+                    const SizedBox(height: 16),
 
-                    // System Automation Info Box
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.cardHighlight,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.auto_awesome, color: AppTheme.accent, size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
-                                  'System Automation',
-                                  style: TextStyle(
-                                    color: AppTheme.accent,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Al crear este cliente, se generará automáticamente un portafolio de bienvenida y se enviarán las credenciales de acceso seguro vía email.',
-                                  style: TextStyle(
-                                    color: AppTheme.accent,
-                                    fontSize: 11,
-                                    height: 1.4,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                    _buildLabel('Dirección'),
+                    _buildTextField(
+                      controller: _direccionCtrl,
+                      hintText: 'Calle, Número, Colonia...',
+                      icon: Icons.location_on_outlined,
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildLabel('Referencias de Dirección'),
+                    _buildTextField(
+                      controller: _referenciasDireccionCtrl,
+                      hintText: 'Entre calles, fachada, etc.',
+                      icon: Icons.map_outlined,
                     ),
                     const SizedBox(height: 24),
                   ],

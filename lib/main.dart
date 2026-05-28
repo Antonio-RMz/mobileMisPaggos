@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'screens/main_screen.dart';
+import 'screens/repartidor_main_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers/cart_provider.dart';
 import 'providers/dashboard_provider.dart';
@@ -53,7 +54,13 @@ class GestionClientesApp extends StatelessWidget {
               ),
             );
           }
-          return authProvider.isAuthenticated ? const MainScreen() : const LoginScreen();
+          if (authProvider.isAuthenticated) {
+            if (authProvider.role == 'repartidor') {
+              return const RepartidorMainScreen();
+            }
+            return const MainScreen();
+          }
+          return const LoginScreen();
         },
       ),
     );

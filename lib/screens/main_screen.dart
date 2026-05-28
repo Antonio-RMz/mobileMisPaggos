@@ -4,7 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
 import 'cliente_list_screen.dart';
-import 'producto_list_screen.dart';
+import 'productos_main_screen.dart';
 import 'corte_caja_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -28,7 +28,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const DashboardScreen(),
     const ClienteListScreen(),
-    const ProductoListScreen(),
+    const ProductosMainScreen(),
     const CorteCajaScreen(),
   ];
 
@@ -66,9 +66,9 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Productos',
           ),
           NavigationDestination(
-            icon: Icon(LucideIcons.wallet),
-            selectedIcon: Icon(LucideIcons.wallet, color: AppTheme.accent),
-            label: 'Caja',
+            icon: Icon(LucideIcons.fileText),
+            selectedIcon: Icon(LucideIcons.fileText, color: AppTheme.accent),
+            label: 'Reportes',
           ),
         ],
       ),

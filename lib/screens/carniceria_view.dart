@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import '../models/producto_model.dart';
 import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
-import 'producto_form_modal.dart';
+import 'carniceria_form_modal.dart';
 import 'package:intl/intl.dart';
-import '../widgets/app_drawer.dart';
 
-class ProductoListScreen extends StatefulWidget {
-  const ProductoListScreen({super.key});
+class CarniceriaView extends StatefulWidget {
+  const CarniceriaView({super.key});
 
   @override
-  State<ProductoListScreen> createState() => _ProductoListScreenState();
+  State<CarniceriaView> createState() => _CarniceriaViewState();
 }
 
-class _ProductoListScreenState extends State<ProductoListScreen> {
+class _CarniceriaViewState extends State<CarniceriaView> {
   final FirebaseService _firebaseService = FirebaseService();
   String _searchQuery = '';
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
@@ -23,7 +22,7 @@ class _ProductoListScreenState extends State<ProductoListScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const ProductoFormModal(),
+      builder: (context) => const CarniceriaFormModal(),
     );
   }
 
@@ -73,7 +72,7 @@ class _ProductoListScreenState extends State<ProductoListScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => ProductoFormModal(producto: producto),
+      builder: (context) => CarniceriaFormModal(producto: producto),
     );
   }
 
@@ -118,10 +117,7 @@ class _ProductoListScreenState extends State<ProductoListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: const AppDrawer(),
-      appBar: AppBar(
-        title: const Text('MisPaggos'),
-      ),
+      backgroundColor: Colors.transparent,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -132,16 +128,16 @@ class _ProductoListScreenState extends State<ProductoListScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: const [
                 Text(
-                  'Catálogo de Productos',
+                  'Carnicería',
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textDark,
                   ),
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Gestiona los precios y el inventario.',
+                  'Gestiona los cortes de carne y cremería.',
                   style: TextStyle(
                     fontSize: 14,
                     color: AppTheme.textLight,
@@ -205,24 +201,40 @@ class _ProductoListScreenState extends State<ProductoListScreen> {
                 }
 
                 final todos = snapshot.data ?? [];
-                // Filtrar localmente por búsqueda
-                final productos = todos.where((p) => p.nombre.toLowerCase().contains(_searchQuery)).toList();
+                // Filtrar localmente por búsqueda y SOLO 'carniceria'
+                final productos = todos.where((p) {
+                  final esCarniceria = p.seccion == 'carniceria';
+                  final matchBusqueda = p.nombre.toLowerCase().contains(_searchQuery);
+                  return esCarniceria && matchBusqueda;
+                }).toList();
 
                 if (productos.isEmpty && _searchQuery.isNotEmpty) {
-                  // Sugerir creación al vuelo
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.inventory_2_outlined, size: 48, color: AppTheme.textLight),
+                        const Icon(Icons.set_meal_outlined, size: 48, color: AppTheme.textLight),
                         const SizedBox(height: 16),
                         Text('No se encontró "${_searchQuery}"', style: const TextStyle(color: AppTheme.textLight)),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
                           onPressed: () => _mostrarModalAlta(context),
                           icon: const Icon(Icons.add),
-                          label: const Text('Crear Producto'),
+                          label: const Text('Alta Carnicería'),
                         ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (productos.isEmpty && _searchQuery.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.set_meal_outlined, size: 48, color: AppTheme.textLight),
+                        const SizedBox(height: 16),
+                        const Text('No hay productos de carnicería', style: TextStyle(color: AppTheme.textLight)),
                       ],
                     ),
                   );
@@ -242,8 +254,10 @@ class _ProductoListScreenState extends State<ProductoListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        heroTag: 'fab_producto',
+        heroTag: 'fab_carniceria',
         onPressed: () => _mostrarModalAlta(context),
+        backgroundColor: Colors.redAccent,
+        foregroundColor: Colors.white,
         child: const Icon(Icons.add, size: 28),
       ),
     );
@@ -265,10 +279,10 @@ class _ProductoListScreenState extends State<ProductoListScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppTheme.cardHighlight,
+                color: Colors.redAccent.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.inventory_2, color: AppTheme.accent, size: 24),
+              child: const Icon(Icons.set_meal, color: Colors.redAccent, size: 24),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -284,21 +298,15 @@ class _ProductoListScreenState extends State<ProductoListScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  if (producto.codigo.isNotEmpty)
-                    Text(
-                      'Código: ${producto.codigo}',
-                      style: const TextStyle(fontSize: 12, color: AppTheme.textLight),
-                    ),
-                  const SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Precio: ${_currencyFormat.format(producto.precio)}',
+                        'Precio: ${_currencyFormat.format(producto.precio)} / ${producto.unidadVenta}',
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.primary,
+                          color: Colors.redAccent,
                         ),
                       ),
                     ],

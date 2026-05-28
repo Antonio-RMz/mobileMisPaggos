@@ -48,6 +48,14 @@ class Ticket {
   double totalVenta;
   double totalAbonado;
   String estado; // 'Pagado', 'Con Deuda'
+  
+  // Nuevos campos para entregas
+  String tipoEntrega; // 'Local', 'Domicilio'
+  String? repartidorId;
+  String? repartidorNombre;
+  String estadoEntrega; // 'Entregado', 'Pendiente', 'Cancelado'
+  String? motivoCancelacion;
+
   String createBy;
   Timestamp? createAt;
   String updateBy;
@@ -62,6 +70,11 @@ class Ticket {
     required this.totalVenta,
     required this.totalAbonado,
     required this.estado,
+    this.tipoEntrega = 'Local',
+    this.repartidorId,
+    this.repartidorNombre,
+    this.estadoEntrega = 'Entregado',
+    this.motivoCancelacion,
     this.createBy = 'Sistema',
     this.createAt,
     this.updateBy = 'Sistema',
@@ -83,6 +96,11 @@ class Ticket {
       totalVenta: (data['totalVenta'] ?? 0).toDouble(),
       totalAbonado: (data['totalAbonado'] ?? 0).toDouble(),
       estado: data['estado'] ?? 'Con Deuda',
+      tipoEntrega: data['tipoEntrega'] ?? 'Local',
+      repartidorId: data['repartidorId'],
+      repartidorNombre: data['repartidorNombre'],
+      estadoEntrega: data['estadoEntrega'] ?? 'Entregado',
+      motivoCancelacion: data['motivoCancelacion'],
       createBy: data['createBy'] ?? '',
       createAt: data['createAt'],
       updateBy: data['updateBy'] ?? '',
@@ -100,6 +118,11 @@ class Ticket {
       'totalAbonado': totalAbonado,
       'saldoRestante': saldoRestante,
       'estado': estado,
+      'tipoEntrega': tipoEntrega,
+      'repartidorId': repartidorId,
+      'repartidorNombre': repartidorNombre,
+      'estadoEntrega': estadoEntrega,
+      'motivoCancelacion': motivoCancelacion,
       'createBy': createBy,
       'createAt': createAt,
       'updateBy': updateBy,

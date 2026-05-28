@@ -4,7 +4,7 @@ class AppTheme {
   // Paleta Stripe / Linear (B2B Premium)
   static const Color slateBlue = Color(0xFF0F172A); // Azul oscuro casi negro para fondos fuertes y textos
   static const Color turquoise = Color(0xFF2DD4BF); // Turquesa suave como accent color
-  static const Color backgroundLight = Color(0xFFF8FAFC); // Fondo gris muy claro
+  static const Color backgroundLight = Color(0xFFF1F5F9); // Fondo gris claro (slate-100) para dar contraste
   static const Color cardHighlight = Color(0xFFF1F5F9); // Fondo sutil para tags
   static const Color whiteColor = Colors.white;
   
@@ -49,10 +49,12 @@ class AppTheme {
 
       cardTheme: CardTheme(
         color: whiteColor,
-        elevation: 0,
+        elevation: 4,
+        shadowColor: Colors.black.withOpacity(0.2),
+        surfaceTintColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1),
+          side: BorderSide(color: Colors.grey.withOpacity(0.3), width: 1),
         ),
         margin: const EdgeInsets.only(bottom: 16),
       ),

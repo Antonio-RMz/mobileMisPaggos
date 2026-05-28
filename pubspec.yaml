@@ -24,6 +24,8 @@ dependencies:
   lucide_icons: ^0.257.0
   image_picker: ^1.2.0
   shared_preferences: ^2.5.3
+  flutter_slidable: ^4.0.3
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:

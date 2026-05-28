@@ -77,7 +77,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
       backgroundColor: AppTheme.backgroundLight,
       drawer: const AppDrawer(),
       appBar: AppBar(
-        title: const Text('Corte de Caja', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Reportes', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
       ),
@@ -155,7 +155,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                                 await PdfService.generarCorteCajaPdf(_startDate, _endDate, tickets, abonos, ventasTotales, ingresosReales, deudaGenerada);
                                 if (context.mounted) {
                                   Navigator.pop(context);
-                                  OverlayHelper.showSuccess(context, message: 'Corte de Caja Generado');
+                                  OverlayHelper.showSuccess(context, message: 'Reporte Generado');
                                 }
                               } catch(e) {
                                 if (context.mounted) {
@@ -217,6 +217,65 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
           Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
           const SizedBox(height: 8),
           Text(_currencyFormat.format(amount), style: TextStyle(color: color, fontSize: 28, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTicketCard(Ticket t) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(child: Text(t.clienteNombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+              if (t.fecha != null)
+                Text(DateFormat('dd/MM/yy HH:mm').format(t.fecha!.toDate()), style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(t.tipoEntrega == 'Domicilio' ? Icons.two_wheeler : Icons.storefront, size: 16, color: t.tipoEntrega == 'Domicilio' ? Colors.orange : AppTheme.success),
+              const SizedBox(width: 6),
+              Text(t.tipoEntrega == 'Domicilio' ? 'Repartidor: ${t.repartidorNombre ?? "Asignado"}' : 'Sucursal', style: TextStyle(color: Colors.grey[700], fontSize: 13)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Total Venta:', style: TextStyle(fontSize: 13)),
+              Text(_currencyFormat.format(t.totalVenta), style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Abono Inicial:', style: TextStyle(fontSize: 13)),
+              Text(_currencyFormat.format(t.totalAbonado), style: const TextStyle(color: AppTheme.success)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Saldo Pendiente:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              Text(_currencyFormat.format(t.saldoRestante), style: TextStyle(color: t.saldoRestante > 0 ? Colors.red : Colors.green, fontWeight: FontWeight.bold)),
+            ],
+          ),
         ],
       ),
     );

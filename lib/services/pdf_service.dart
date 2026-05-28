@@ -382,13 +382,108 @@ class PdfService {
     await Share.shareXFiles([XFile(file.path)], text: 'Corte de Caja de ${dateFormatShort.format(start)} a ${dateFormatShort.format(end)}');
   }
 
-  static pw.Widget _buildPdfSummaryItem(String title, double amount, PdfColor color) {
+  /// Genera y comparte el PDF del Corte de Repartidor
+  static Future<void> generarCorteRepartidorPdf(
+      String repartidorNombre,
+      DateTime start, 
+      DateTime end, 
+      List<Ticket> tickets, 
+      List<Abono> abonos) async {
+    
+    final pdf = pw.Document();
+
+    double valorMercancia = 0;
+    for (var t in tickets) {
+      valorMercancia += t.totalVenta;
+    }
+
+    double efectivoCobrado = 0;
+    for (var a in abonos) {
+      efectivoCobrado += a.monto;
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return [
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('CORTE DE REPARTIDOR', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+                    pw.SizedBox(height: 5),
+                    pw.Text('Repartidor: $repartidorNombre', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                  ]
+                ),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Text('Periodo', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
+                    pw.Text('${dateFormatShort.format(start)} - ${dateFormatShort.format(end)}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                  ]
+                ),
+              ]
+            ),
+            pw.SizedBox(height: 30),
+
+            // Resumen General
+            pw.Container(
+              padding: const pw.EdgeInsets.all(15),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.blueGrey300),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                children: [
+                  _buildPdfSummaryItem('Pedidos Entregados', tickets.length.toDouble(), PdfColors.blueGrey800, isCurrency: false),
+                  _buildPdfSummaryItem('Valor de Mercancía', valorMercancia, PdfColors.blue800, isCurrency: true),
+                  _buildPdfSummaryItem('Efectivo Recaudado', efectivoCobrado, PdfColors.green700, isCurrency: true),
+                ]
+              )
+            ),
+            pw.SizedBox(height: 30),
+
+            // Detalle de Pedidos
+            pw.Text('DETALLE DE PEDIDOS ENTREGADOS', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+            pw.Divider(),
+            if (tickets.isEmpty)
+              pw.Text('No hubo entregas en este periodo.', style: const pw.TextStyle(color: PdfColors.grey))
+            else
+              pw.TableHelper.fromTextArray(
+                headers: ['Fecha Entrega', 'Ticket', 'Cliente', 'Valor Venta'],
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+                data: tickets.map((t) => [
+                  dateFormat.format(t.updateAt?.toDate() ?? DateTime.now()),
+                  t.id.substring(0, 8).toUpperCase(),
+                  t.clienteNombre,
+                  currencyFormat.format(t.totalVenta),
+                ]).toList(),
+              ),
+          ];
+        }
+      )
+    );
+
+    final tempDir = await getTemporaryDirectory();
+    final file = File('${tempDir.path}/Corte_${repartidorNombre.replaceAll(' ', '_')}_${dateFormatShort.format(start).replaceAll('/', '-')}.pdf');
+    await file.writeAsBytes(await pdf.save());
+
+    await Share.shareXFiles([XFile(file.path)], text: 'Corte de Repartidor de ${dateFormatShort.format(start)} a ${dateFormatShort.format(end)}');
+  }
+
+  static pw.Widget _buildPdfSummaryItem(String title, double amount, PdfColor color, {bool isCurrency = true}) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
         pw.Text(title, style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
         pw.SizedBox(height: 5),
-        pw.Text(currencyFormat.format(amount), style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: color)),
+        pw.Text(isCurrency ? currencyFormat.format(amount) : amount.toInt().toString(), style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: color)),
       ]
     );
   }

@@ -14,6 +14,7 @@ class Cliente {
   String direccion;
   String apodo;
   String referenciasDireccion;
+  int colorPerfil;
   double deudaTotal;
   String createBy;
   Timestamp? createAt;
@@ -32,6 +33,7 @@ class Cliente {
     this.direccion = '',
     this.apodo = '',
     this.referenciasDireccion = '',
+    this.colorPerfil = 0xFF2DD4BF,
     this.deudaTotal = 0.0,
     this.createBy = 'Admin',
     this.createAt,
@@ -40,6 +42,13 @@ class Cliente {
   });
 
   String get nombreCompleto => '$nombre $apPaterno $apMaterno'.trim();
+
+  String get iniciales {
+    String n = nombre.isNotEmpty ? nombre[0].toUpperCase() : '';
+    String a = apPaterno.isNotEmpty ? apPaterno[0].toUpperCase() : '';
+    if (n.isEmpty && a.isEmpty) return '?';
+    return '$n$a';
+  }
 
   /// Crea una instancia de Cliente a partir de un documento de Firestore
   factory Cliente.fromMap(String id, Map<String, dynamic> data) {
@@ -55,6 +64,7 @@ class Cliente {
       direccion: data['direccion'] ?? '',
       apodo: data['apodo'] ?? '',
       referenciasDireccion: data['referenciasDireccion'] ?? '',
+      colorPerfil: data['colorPerfil'] ?? 0xFF2DD4BF,
       deudaTotal: (data['deuda_total'] ?? 0).toDouble(),
       createBy: data['createBy'] ?? '',
       createAt: data['createAt'],
@@ -76,6 +86,7 @@ class Cliente {
       'direccion': direccion,
       'apodo': apodo,
       'referenciasDireccion': referenciasDireccion,
+      'colorPerfil': colorPerfil,
       'deuda_total': deudaTotal,
       'createBy': createBy,
       'createAt': createAt,

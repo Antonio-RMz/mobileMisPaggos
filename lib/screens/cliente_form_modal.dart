@@ -27,6 +27,17 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
   final TextEditingController _apodoCtrl = TextEditingController();
   final TextEditingController _referenciasDireccionCtrl = TextEditingController();
 
+  final List<int> _pastelColors = [
+    0xFFA7F3D0, // Verde pastel (emerald-200)
+    0xFFFDBA74, // Naranja pastel (orange-300)
+    0xFFFEF08A, // Amarillo pastel (yellow-200)
+    0xFFFECACA, // Rojo pastel (red-200)
+    0xFFBFDBFE, // Azul pastel (blue-200)
+    0xFFE9D5FF, // Morado pastel (purple-200)
+    0xFFFBCFE8, // Rosa pastel (pink-200)
+  ];
+  int _selectedColor = 0xFFA7F3D0;
+
   bool _isSaving = false;
 
   @override
@@ -43,6 +54,7 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
       _direccionCtrl.text = widget.cliente!.direccion;
       _apodoCtrl.text = widget.cliente!.apodo;
       _referenciasDireccionCtrl.text = widget.cliente!.referenciasDireccion;
+      _selectedColor = widget.cliente!.colorPerfil;
     }
   }
 
@@ -80,6 +92,7 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
             direccion: _direccionCtrl.text.trim(),
             apodo: _apodoCtrl.text.trim(),
             referenciasDireccion: _referenciasDireccionCtrl.text.trim(),
+            colorPerfil: _selectedColor,
           );
           await _firebaseService.addCliente(nuevoCliente);
         } else {
@@ -93,6 +106,7 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
           widget.cliente!.direccion = _direccionCtrl.text.trim();
           widget.cliente!.apodo = _apodoCtrl.text.trim();
           widget.cliente!.referenciasDireccion = _referenciasDireccionCtrl.text.trim();
+          widget.cliente!.colorPerfil = _selectedColor;
           await _firebaseService.updateCliente(widget.cliente!);
         }
 
@@ -226,6 +240,10 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
                     ),
                     const SizedBox(height: 16),
 
+                    _buildLabel('Color de Perfil'),
+                    _buildColorPicker(),
+                    const SizedBox(height: 16),
+
                     _buildLabel('Teléfono Móvil (Celular)'),
                     _buildTextField(
                       controller: _celularCtrl,
@@ -321,6 +339,47 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
           letterSpacing: 0.5,
         ),
       ),
+    );
+  }
+
+  Widget _buildColorPicker() {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: _pastelColors.map((colorValue) {
+        final isSelected = _selectedColor == colorValue;
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedColor = colorValue;
+            });
+          },
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Color(colorValue),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected ? AppTheme.slateBlue : Colors.transparent,
+                width: 3,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: Color(colorValue).withOpacity(0.5),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      )
+                    ]
+                  : null,
+            ),
+            child: isSelected
+                ? const Icon(Icons.check, color: AppTheme.slateBlue, size: 20)
+                : null,
+          ),
+        );
+      }).toList(),
     );
   }
 

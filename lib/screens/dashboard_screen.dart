@@ -18,6 +18,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
+  bool _censurarDatos = false;
 
   @override
   void initState() {
@@ -97,13 +98,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppTheme.cardHighlight,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(LucideIcons.activity, color: AppTheme.primary, size: 28),
+        Row(
+          children: [
+            IconButton(
+              icon: Icon(_censurarDatos ? LucideIcons.eyeOff : LucideIcons.eye, color: AppTheme.textLight),
+              onPressed: () {
+                setState(() {
+                  _censurarDatos = !_censurarDatos;
+                });
+              },
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.cardHighlight,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(LucideIcons.activity, color: AppTheme.primary, size: 28),
+            ),
+          ],
         ),
       ],
     );
@@ -136,6 +150,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     icon: LucideIcons.trendingUp,
                     color: AppTheme.whiteColor,
                     borderColor: AppTheme.primary,
+                    textColor: AppTheme.textDark,
+                    small: true,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildSolidCard(
+                    title: 'Ganancias Hoy',
+                    amount: dashboard.ventasDeHoy,
+                    icon: LucideIcons.sun,
+                    color: AppTheme.whiteColor,
+                    borderColor: AppTheme.success,
                     textColor: AppTheme.textDark,
                     small: true,
                   ),
@@ -183,7 +209,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           SizedBox(height: small ? 8 : 12),
           Text(
-            currencyFormat.format(amount),
+            _censurarDatos ? '\$***.**' : currencyFormat.format(amount),
             style: TextStyle(
               fontSize: small ? 24 : 32,
               fontWeight: FontWeight.bold,
@@ -239,10 +265,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: AppTheme.error.withOpacity(0.1),
+          backgroundColor: Color(cliente.colorPerfil),
+          foregroundColor: AppTheme.slateBlue,
           child: Text(
-            '${index + 1}',
-            style: TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold),
+            cliente.iniciales,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
         title: Text(

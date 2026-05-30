@@ -353,9 +353,22 @@ class _RepartidorMainScreenState extends State<RepartidorMainScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  ticket.clienteNombre.toUpperCase(),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textDark),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'TICKET #${ticket.id.substring(0, 8).toUpperCase()}',
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppTheme.primary, letterSpacing: 1),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        ticket.clienteNombre.toUpperCase(),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textDark),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -384,6 +397,50 @@ class _RepartidorMainScreenState extends State<RepartidorMainScreen> {
                 ],
               ),
             const Divider(height: 24),
+            FutureBuilder<Cliente?>(
+              future: _firebaseService.getClienteById(ticket.clienteId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Text('Cargando dirección...', style: TextStyle(color: Colors.grey, fontSize: 13));
+                }
+                final cliente = snapshot.data;
+                if (cliente != null && cliente.direccion.isNotEmpty) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(LucideIcons.mapPin, size: 16, color: AppTheme.primary),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              cliente.direccion,
+                              style: const TextStyle(fontSize: 14, color: AppTheme.textDark),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (cliente.telefono.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(LucideIcons.phone, size: 16, color: AppTheme.primary),
+                            const SizedBox(width: 6),
+                            Text(
+                              cliente.telefono,
+                              style: const TextStyle(fontSize: 14, color: AppTheme.textDark),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const Divider(height: 24),
+                    ],
+                  );
+                }
+                return const SizedBox();
+              },
+            ),
             Text('Productos (${ticket.productos.length}):', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textLight, fontSize: 12)),
             const SizedBox(height: 8),
             ...ticket.productos.map((p) => Padding(
@@ -408,29 +465,28 @@ class _RepartidorMainScreenState extends State<RepartidorMainScreen> {
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
+                height: 60, // Botón gigante
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.success,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: Colors.green[600],
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 4,
                   ),
-                  icon: const Icon(Icons.point_of_sale, color: Colors.white),
-                  label: const Text('Cobrar Pedido', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.point_of_sale, color: Colors.white, size: 28),
+                  label: const Text('COBRAR PEDIDO', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
                   onPressed: () => _mostrarDialogoCobro(context, ticket),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.error,
-                    side: const BorderSide(color: AppTheme.error),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red[300],
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
-                  icon: const Icon(Icons.cancel_outlined),
-                  label: const Text('Cancelar Pedido', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.cancel, size: 18),
+                  label: const Text('Cancelar pedido', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   onPressed: () => _mostrarDialogoCancelacion(context, ticket),
                 ),
               ),

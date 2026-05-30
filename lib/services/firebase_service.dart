@@ -55,6 +55,19 @@ class FirebaseService {
     });
   }
 
+  /// Método para obtener un cliente por su ID
+  Future<Cliente?> getClienteById(String id) async {
+    try {
+      final doc = await _clientesCollection.doc(id).get();
+      if (doc.exists) {
+        return Cliente.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+      }
+    } catch (e) {
+      debugPrint('Error obteniendo cliente: $e');
+    }
+    return null;
+  }
+
   /// Método para actualizar un cliente existente (Update)
   Future<void> updateCliente(Cliente cliente) async {
     cliente.updateAt = Timestamp.now();

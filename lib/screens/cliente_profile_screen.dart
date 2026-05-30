@@ -376,10 +376,11 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
               children: [
                 CircleAvatar(
                   radius: 30,
-                  backgroundColor: AppTheme.primary.withOpacity(0.2),
+                  backgroundColor: Color(widget.cliente.colorPerfil),
+                  foregroundColor: AppTheme.slateBlue,
                   child: Text(
-                    widget.cliente.nombre[0].toUpperCase(),
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.accent),
+                    widget.cliente.iniciales,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -520,8 +521,18 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                                   padding: const EdgeInsets.only(bottom: 4),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('${p.cantidad}x ${p.nombre}', style: const TextStyle(fontSize: 13)),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text('${p.cantidad}x ${p.nombre}', style: const TextStyle(fontSize: 13)),
+                                            if (p.observaciones.isNotEmpty)
+                                              Text(p.observaciones, style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)),
+                                          ],
+                                        ),
+                                      ),
                                       Text(_currencyFormat.format(p.subtotal), style: const TextStyle(fontSize: 13, color: AppTheme.accent)),
                                     ],
                                   ),

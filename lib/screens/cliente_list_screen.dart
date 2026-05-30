@@ -337,6 +337,16 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Color(cliente.colorPerfil),
+                  foregroundColor: AppTheme.slateBlue,
+                  child: Text(
+                    cliente.iniciales,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

@@ -23,31 +23,49 @@ class _PosScreenState extends State<PosScreen> {
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   String _searchQuery = '';
 
-  Future<void> _mostrarDialogoPeso(BuildContext context, CartProvider cart, Producto producto, {double cantidadActual = 0.0}) async {
-    final TextEditingController pesoCtrl = TextEditingController(text: cantidadActual > 0 ? cantidadActual.toString() : '');
+  Future<void> _mostrarDialogoConfiguracionProducto(BuildContext context, CartProvider cart, Producto producto, {CartItem? itemActual}) async {
+    String modoVenta = 'Unidad Base'; // 'Unidad Base', 'Monto ($)', 'Gramos'
+    final double precioKilo = producto.precio;
     
-    // Obtenemos datos actuales si ya está en el carrito
-    final itemActual = cart.items.where((i) => i.producto.id == producto.id).firstOrNull;
-    final double precioInicial = itemActual?.precioUnitario ?? producto.precio;
-    final String unidadInicial = itemActual?.unidadVenta ?? producto.unidadVenta;
-
-    final double cantidadInicial = cantidadActual > 0 ? cantidadActual : 1.0;
-    final double totalInicial = cantidadInicial * precioInicial;
-
-    final TextEditingController totalCtrl = TextEditingController(text: totalInicial.toStringAsFixed(2));
+    double cantidadBaseInicial = itemActual?.cantidad ?? 1.0;
+    String obsInicial = itemActual?.observaciones ?? '';
     
-    // Unidades disponibles
-    final List<String> unidades = ['kg', 'gramos', 'piezas', 'paquetes', 'litros'];
-    String unidadSeleccionada = unidades.contains(unidadInicial.toLowerCase()) ? unidadInicial.toLowerCase() : 'kg';
+    // Intentar quitar la etiqueta automática (Cobro: $...) si existe al editar
+    if (obsInicial.startsWith('(Cobro:')) {
+      final idx = obsInicial.indexOf(') - ');
+      if (idx != -1) {
+        obsInicial = obsInicial.substring(idx + 4);
+      } else {
+        obsInicial = ''; // Era solo el cobro
+      }
+    }
+
+    final TextEditingController inputCtrl = TextEditingController();
+    final TextEditingController obsCtrl = TextEditingController(text: obsInicial);
+    final TextEditingController overrideCtrl = TextEditingController();
+    bool overrideTotal = false;
+    
+    inputCtrl.text = (itemActual != null) ? cantidadBaseInicial.toString() : '';
 
     await showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
-            final double peso = double.tryParse(pesoCtrl.text) ?? 0.0;
-            final double total = double.tryParse(totalCtrl.text) ?? 0.0;
-            final double precioUnitarioCalc = peso > 0 ? total / peso : 0.0;
+            double inputVal = double.tryParse(inputCtrl.text) ?? 0.0;
+            double cantidadFinal = 0.0;
+            double totalCalculado = 0.0;
+
+            if (modoVenta == 'Monto (\$)' && precioKilo > 0) {
+              cantidadFinal = inputVal / precioKilo;
+              totalCalculado = inputVal;
+            } else if (modoVenta == 'Gramos') {
+              cantidadFinal = inputVal / 1000;
+              totalCalculado = cantidadFinal * precioKilo;
+            } else {
+              cantidadFinal = inputVal;
+              totalCalculado = cantidadFinal * precioKilo;
+            }
 
             return AlertDialog(
               title: Text('Configurar - ${producto.nombre}'),
@@ -56,47 +74,111 @@ class _PosScreenState extends State<PosScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: unidadSeleccionada,
-                      decoration: const InputDecoration(labelText: 'Unidad de Venta', border: OutlineInputBorder()),
-                      items: const [
-                        DropdownMenuItem(value: 'kg', child: Text('Kilogramos (kg)')),
-                        DropdownMenuItem(value: 'gramos', child: Text('Gramos (g)')),
-                        DropdownMenuItem(value: 'piezas', child: Text('Piezas')),
-                        DropdownMenuItem(value: 'paquetes', child: Text('Paquetes')),
-                        DropdownMenuItem(value: 'litros', child: Text('Litros (L)')),
+                      value: modoVenta,
+                      decoration: const InputDecoration(labelText: 'Modo de Venta', border: OutlineInputBorder()),
+                      items: [
+                        DropdownMenuItem(value: 'Unidad Base', child: Text('Por ${producto.unidadVenta}')),
+                        if (producto.unidadVenta == 'kg') ...[
+                          const DropdownMenuItem(value: 'Monto (\$)', child: Text('Por Monto (\$)' )),
+                          const DropdownMenuItem(value: 'Gramos', child: Text('Por Gramos')),
+                        ]
                       ],
                       onChanged: (val) {
-                        if (val != null) setStateDialog(() => unidadSeleccionada = val);
+                        if (val != null) {
+                          setStateDialog(() {
+                            modoVenta = val;
+                            inputCtrl.clear();
+                          });
+                        }
                       },
                     ),
                     const SizedBox(height: 16),
                     TextField(
-                      controller: pesoCtrl,
+                      controller: inputCtrl,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       autofocus: true,
                       onChanged: (v) => setStateDialog((){}),
                       decoration: InputDecoration(
-                        labelText: 'Cantidad',
-                        suffixText: unidadSeleccionada,
+                        labelText: modoVenta == 'Monto (\$)' ? 'Monto a Cobrar (\$)' : (modoVenta == 'Gramos' ? 'Gramos (g)' : 'Cantidad (${producto.unidadVenta})'),
                         border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 16),
                     TextField(
-                      controller: totalCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (v) => setStateDialog((){}),
+                      controller: obsCtrl,
+                      maxLines: 2,
                       decoration: const InputDecoration(
-                        labelText: 'Total a Cobrar',
-                        prefixText: '\$ ',
+                        labelText: 'Observaciones / Instrucciones',
+                        hintText: 'Ej. Tasajeado, En cubos, Sin grasa...',
                         border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      'Precio Unitario Calculado: ${_currencyFormat.format(precioUnitarioCalc)} / $unidadSeleccionada',
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
+                    if (inputVal > 0)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(8)),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Equivale a:'),
+                                Text('${cantidadFinal.toStringAsFixed(3)} ${producto.unidadVenta}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Total:'),
+                                Text(_currencyFormat.format(totalCalculado), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (inputVal > 0) ...[
+                      const SizedBox(height: 16),
+                      CheckboxListTile(
+                        title: const Text('¿Cambiar total a cobrar?', style: TextStyle(fontWeight: FontWeight.bold)),
+                        value: overrideTotal,
+                        onChanged: (val) {
+                          setStateDialog(() {
+                            overrideTotal = val ?? false;
+                            if (overrideTotal) {
+                              overrideCtrl.text = totalCalculado.toStringAsFixed(2);
+                            } else {
+                              overrideCtrl.clear();
+                            }
+                          });
+                        },
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        activeColor: AppTheme.primary,
+                      ),
+                      const SizedBox(height: 8),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        height: overrideTotal ? 70 : 0,
+                        child: SingleChildScrollView(
+                          child: TextField(
+                            controller: overrideCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            enabled: overrideTotal,
+                            onChanged: (v) => setStateDialog((){}),
+                            decoration: InputDecoration(
+                              labelText: 'Nuevo Total a Cobrar (\$)',
+                              prefixText: '\$ ',
+                              border: const OutlineInputBorder(),
+                              filled: true,
+                              fillColor: overrideTotal ? Colors.white : Colors.grey[200],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -107,14 +189,30 @@ class _PosScreenState extends State<PosScreen> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    final double pesoFinal = double.tryParse(pesoCtrl.text) ?? 0.0;
-                    final double totalFinal = double.tryParse(totalCtrl.text) ?? 0.0;
-                    if (pesoFinal > 0) {
-                      final double precioUnitarioFinal = totalFinal / pesoFinal;
-                      if (cantidadActual > 0) {
-                        cart.updateQuantity(producto.id, pesoFinal, precioUnitario: precioUnitarioFinal, unidadVenta: unidadSeleccionada);
+                    if (cantidadFinal > 0) {
+                      double overrideVal = double.tryParse(overrideCtrl.text) ?? totalCalculado;
+                      double precioUnitarioCalculado = overrideTotal && cantidadFinal > 0 ? (overrideVal / cantidadFinal) : precioKilo;
+                      
+                      String obsStr = obsCtrl.text.trim();
+                      if (modoVenta == 'Monto (\$)' && obsStr.isEmpty) {
+                        obsStr = '(Cobro: ${_currencyFormat.format(inputVal)})';
+                      } else if (modoVenta == 'Monto (\$)' && obsStr.isNotEmpty) {
+                        obsStr = '(Cobro: ${_currencyFormat.format(inputVal)}) - $obsStr';
+                      } else if (modoVenta == 'Gramos' && obsStr.isEmpty) {
+                        obsStr = '(Pedido original: ${inputVal.toStringAsFixed(0)} g)';
+                      } else if (modoVenta == 'Gramos' && obsStr.isNotEmpty) {
+                        obsStr = '(Pedido original: ${inputVal.toStringAsFixed(0)} g) - $obsStr';
+                      }
+
+                      if (overrideTotal && overrideVal != totalCalculado) {
+                        final ajusteStr = '(Ajuste de precio: Cobrado a ${_currencyFormat.format(overrideVal)})';
+                        obsStr = obsStr.isEmpty ? ajusteStr : '$obsStr - $ajusteStr';
+                      }
+
+                      if (itemActual != null) {
+                        cart.updateQuantity(itemActual.id, cantidadFinal, observaciones: obsStr, precioUnitario: precioUnitarioCalculado);
                       } else {
-                        cart.addItem(producto, cantidad: pesoFinal, precioUnitario: precioUnitarioFinal, unidadVenta: unidadSeleccionada);
+                        cart.addItem(producto, cantidad: cantidadFinal, observaciones: obsStr, precioUnitario: precioUnitarioCalculado);
                       }
                       Navigator.pop(context);
                     }
@@ -250,6 +348,14 @@ class _PosScreenState extends State<PosScreen> {
                           labelText: 'Monto a Abonar (Tienda)',
                           prefixIcon: const Icon(Icons.attach_money),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          suffixIcon: TextButton(
+                            onPressed: () {
+                              setModalState(() {
+                                abonoCtrl.text = totalTienda.toStringAsFixed(2);
+                              });
+                            },
+                            child: const Text('Liquidar', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -301,6 +407,7 @@ class _PosScreenState extends State<PosScreen> {
                                 nombre: i.producto.nombre,
                                 cantidad: i.cantidad,
                                 precioUnitario: i.precioUnitario,
+                                observaciones: i.observaciones,
                               );
                             }).toList(),
                             totalVenta: totalTienda,
@@ -325,6 +432,7 @@ class _PosScreenState extends State<PosScreen> {
                                 nombre: i.producto.nombre,
                                 cantidad: i.cantidad,
                                 precioUnitario: i.precioUnitario,
+                                observaciones: i.observaciones,
                               );
                             }).toList(),
                             totalVenta: totalDomicilio,
@@ -435,6 +543,10 @@ class _PosScreenState extends State<PosScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(item.producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                                      if (item.observaciones.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(item.observaciones, style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 12, color: Colors.grey)),
+                                      ],
                                       const SizedBox(height: 4),
                                       StatefulBuilder(
                                         builder: (context, setStateItem) {
@@ -447,7 +559,7 @@ class _PosScreenState extends State<PosScreen> {
                                                 value: item.isDomicilio,
                                                 activeColor: Colors.orange,
                                                 onChanged: (val) {
-                                                  cart.toggleDomicilio(item.producto.id, val);
+                                                  cart.toggleDomicilio(item.id, val);
                                                   setStateItem(() {});
                                                 },
                                               ),
@@ -469,7 +581,7 @@ class _PosScreenState extends State<PosScreen> {
                                             padding: EdgeInsets.zero,
                                             constraints: const BoxConstraints(),
                                             icon: const Icon(Icons.remove_circle_outline, color: AppTheme.error),
-                                            onPressed: () => cart.updateQuantity(item.producto.id, item.cantidad - 1),
+                                            onPressed: () => cart.updateQuantity(item.id, item.cantidad - 1),
                                           ),
                                           const SizedBox(width: 8),
                                           Text('${item.cantidad.toInt()}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -478,14 +590,14 @@ class _PosScreenState extends State<PosScreen> {
                                             padding: EdgeInsets.zero,
                                             constraints: const BoxConstraints(),
                                             icon: const Icon(Icons.add_circle_outline, color: AppTheme.success),
-                                            onPressed: () => cart.updateQuantity(item.producto.id, item.cantidad + 1),
+                                            onPressed: () => cart.updateQuantity(item.id, item.cantidad + 1),
                                           ),
                                         ] else ...[
                                           TextButton.icon(
                                             style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
                                             onPressed: () {
                                               Navigator.pop(context);
-                                              _mostrarDialogoPeso(context, cart, item.producto, cantidadActual: item.cantidad);
+                                              _mostrarDialogoConfiguracionProducto(context, cart, item.producto, itemActual: item);
                                             },
                                             icon: const Icon(Icons.scale, size: 16, color: AppTheme.primary),
                                             label: Text('${item.cantidad.toStringAsFixed(2)} ${item.unidadVenta}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.primary)),
@@ -495,7 +607,7 @@ class _PosScreenState extends State<PosScreen> {
                                             constraints: const BoxConstraints(),
                                             icon: const Icon(Icons.delete_outline, color: AppTheme.error),
                                             onPressed: () {
-                                              cart.removeItem(item.producto.id);
+                                              cart.removeItem(item.id);
                                               if (cart.items.isEmpty) Navigator.pop(context);
                                             },
                                           ),
@@ -626,8 +738,8 @@ class _PosScreenState extends State<PosScreen> {
                 onTap: () {
                   final bool usaFracciones = p.unidadVenta != 'pieza' && p.unidadVenta != 'paquete';
                   
-                  if (usaFracciones) {
-                    _mostrarDialogoPeso(context, cart, p);
+                  if (usaFracciones || isCarniceria) {
+                    _mostrarDialogoConfiguracionProducto(context, cart, p);
                   } else {
                     cart.addItem(p);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -681,12 +793,21 @@ class _PosScreenState extends State<PosScreen> {
                       ),
                       const SizedBox(width: 12),
                       Container(
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
-                          color: AppTheme.success.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
+                          color: AppTheme.primary,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(color: AppTheme.primary.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))
+                          ],
                         ),
-                        child: const Icon(Icons.add, color: AppTheme.success, size: 20),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add_shopping_cart, color: Colors.white, size: 18),
+                            SizedBox(width: 6),
+                            Text('Agregar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
                       ),
                     ],
                   ),

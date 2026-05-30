@@ -45,9 +45,19 @@ class PdfService {
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Expanded(
-                      child: pw.Text(
-                        '${prod.cantidad}x ${prod.nombre}', 
-                        style: const pw.TextStyle(fontSize: 8)
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            '${prod.cantidad}x ${prod.nombre}', 
+                            style: const pw.TextStyle(fontSize: 8)
+                          ),
+                          if (prod.observaciones.isNotEmpty)
+                            pw.Text(
+                              prod.observaciones,
+                              style: const pw.TextStyle(fontSize: 7, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)
+                            ),
+                        ],
                       ),
                     ),
                     pw.Text(
@@ -203,12 +213,25 @@ class PdfService {
                           ]
                         ),
                         pw.SizedBox(height: 8),
-                        ...mov.productos.map((p) => pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('- ${p.cantidad}x ${p.nombre}', style: const pw.TextStyle(fontSize: 10)),
-                            pw.Text(currencyFormat.format(p.subtotal), style: const pw.TextStyle(fontSize: 10)),
-                          ]
+                        ...mov.productos.map((p) => pw.Padding(
+                          padding: const pw.EdgeInsets.only(bottom: 4),
+                          child: pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Expanded(
+                                child: pw.Column(
+                                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                  children: [
+                                    pw.Text('- ${p.cantidad}x ${p.nombre}', style: const pw.TextStyle(fontSize: 10)),
+                                    if (p.observaciones.isNotEmpty)
+                                      pw.Text(p.observaciones, style: const pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
+                                  ]
+                                )
+                              ),
+                              pw.Text(currencyFormat.format(p.subtotal), style: const pw.TextStyle(fontSize: 10)),
+                            ]
+                          )
                         )),
                         pw.Divider(color: PdfColors.blueGrey200),
                         pw.Row(

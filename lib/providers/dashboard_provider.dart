@@ -8,6 +8,7 @@ class DashboardProvider with ChangeNotifier {
 
   double _totalPorCobrar = 0.0;
   double _ventasDelMes = 0.0;
+  double _ventasDeHoy = 0.0;
   List<Cliente> _topMorosos = [];
   Map<String, double> _topProductosCarnes = {};
   Map<String, double> _topProductosCatalogo = {};
@@ -18,6 +19,7 @@ class DashboardProvider with ChangeNotifier {
 
   double get totalPorCobrar => _totalPorCobrar;
   double get ventasDelMes => _ventasDelMes;
+  double get ventasDeHoy => _ventasDeHoy;
   List<Cliente> get topMorosos => _topMorosos;
   Map<String, double> get topProductosCarnes => _topProductosCarnes;
   Map<String, double> get topProductosCatalogo => _topProductosCatalogo;
@@ -75,6 +77,7 @@ class DashboardProvider with ChangeNotifier {
       }
 
       double totalVentasMes = 0.0;
+      double totalVentasHoy = 0.0;
       Map<String, double> contCarnes = {};
       Map<String, double> contCatalogo = {};
 
@@ -90,13 +93,16 @@ class DashboardProvider with ChangeNotifier {
         // Contemos los del día de hoy para que sea relevante en el dashboard
         final bool esDeHoy = ticket.fecha != null && ticket.fecha!.toDate().day == ahora.day && ticket.fecha!.toDate().month == ahora.month && ticket.fecha!.toDate().year == ahora.year;
 
-        if (esDeHoy && ticket.tipoEntrega == 'Domicilio') {
-          if (ticket.estadoEntrega == 'Pendiente') {
-            enReparto++;
-          } else if (ticket.estadoEntrega == 'Entregado') {
-            enviadas++;
-          } else if (ticket.estadoEntrega == 'Cancelado') {
-            canceladas++;
+        if (esDeHoy) {
+          totalVentasHoy += ticket.totalVenta;
+          if (ticket.tipoEntrega == 'Domicilio') {
+            if (ticket.estadoEntrega == 'Pendiente') {
+              enReparto++;
+            } else if (ticket.estadoEntrega == 'Entregado') {
+              enviadas++;
+            } else if (ticket.estadoEntrega == 'Cancelado') {
+              canceladas++;
+            }
           }
         }
 
@@ -114,6 +120,7 @@ class DashboardProvider with ChangeNotifier {
       }
 
       _ventasDelMes = totalVentasMes;
+      _ventasDeHoy = totalVentasHoy;
       _entregasEnReparto = enReparto;
       _entregasEnviadas = enviadas;
       _entregasCanceladas = canceladas;

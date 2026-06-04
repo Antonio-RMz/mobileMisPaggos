@@ -8,6 +8,7 @@ import '../providers/dashboard_provider.dart';
 import '../models/cliente_model.dart';
 import 'cliente_profile_screen.dart';
 import '../widgets/app_drawer.dart';
+import 'pos_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -68,6 +69,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PosScreen()),
+          );
+        },
+        backgroundColor: AppTheme.accent,
+        icon: const Icon(LucideIcons.shoppingBag, color: Colors.white),
+        label: const Text('Venta Rápida', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }

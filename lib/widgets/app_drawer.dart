@@ -9,6 +9,8 @@ import '../screens/support_screen.dart';
 import '../screens/user_profile_screen.dart';
 import '../providers/auth_provider.dart';
 import '../screens/personal_list_screen.dart';
+import '../screens/pos_screen.dart';
+import '../screens/ventas_list_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -109,6 +111,7 @@ class AppDrawer extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
+
                 _buildDrawerItem(
                   context: context,
                   icon: LucideIcons.users,
@@ -130,6 +133,18 @@ class AppDrawer extends StatelessWidget {
                       context,
                       MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 2)),
                       (route) => false,
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  context: context,
+                  icon: LucideIcons.shoppingCart,
+                  title: 'Ventas',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const VentasListScreen()),
                     );
                   },
                 ),

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/ticket_model.dart';
 import '../theme/app_theme.dart';
+import '../services/pdf_service.dart';
 
 class PaymentSuccessScreen extends StatefulWidget {
   final Ticket ticket;
@@ -53,7 +54,7 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> with Single
     sb.writeln('\n*Productos:*');
     for (var p in widget.ticket.productos) {
       final codigoText = p.codigo.isNotEmpty ? '[${p.codigo}] ' : '';
-      sb.writeln('- $codigoText${p.cantidad}x ${p.nombre} (${_currencyFormat.format(p.precioUnitario)})');
+      sb.writeln('- $codigoText${p.descripcionAmigable} (${_currencyFormat.format(p.precioUnitario)})');
     }
     sb.writeln('\n¡Gracias por tu compra!');
 
@@ -177,6 +178,22 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> with Single
                       onPressed: _compartirPorWhatsApp,
                       icon: const Icon(Icons.share, color: Colors.green),
                       label: const Text('Compartir Comprobante (WhatsApp)'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppTheme.textDark,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      onPressed: () async {
+                        await PdfService.imprimirTicket(widget.ticket, abonoReciente: widget.abonado);
+                      },
+                      icon: const Icon(Icons.print, color: Colors.blueAccent),
+                      label: const Text('Imprimir / Ver Ticket PDF'),
                     ),
                   ),
                   const SizedBox(height: 16),

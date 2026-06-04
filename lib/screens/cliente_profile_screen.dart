@@ -496,7 +496,13 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                             color: pagado ? Colors.green : Colors.red,
                           ),
                         ),
-                        title: Text('Total: ${_currencyFormat.format(t.totalVenta)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        title: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Ticket #${t.folio}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            Text(_currencyFormat.format(t.totalVenta), style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary, fontSize: 14)),
+                          ],
+                        ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -527,7 +533,7 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text('${p.cantidad}x ${p.nombre}', style: const TextStyle(fontSize: 13)),
+                                            Text(p.descripcionAmigable, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                                             if (p.observaciones.isNotEmpty)
                                               Text(p.observaciones, style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)),
                                           ],

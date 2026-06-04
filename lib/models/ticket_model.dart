@@ -7,6 +7,7 @@ class TicketItem {
   double cantidad;
   double precioUnitario;
   String observaciones;
+  String unidadVenta;
 
   TicketItem({
     required this.productoId,
@@ -15,9 +16,37 @@ class TicketItem {
     required this.cantidad,
     required this.precioUnitario,
     this.observaciones = '',
+    this.unidadVenta = '',
   });
 
   double get subtotal => cantidad * precioUnitario;
+
+  String get descripcionAmigable {
+    String cantStr = cantidad % 1 == 0 ? cantidad.toInt().toString() : cantidad.toStringAsFixed(3).replaceAll(RegExp(r'0*$'), '').replaceAll(RegExp(r'\.$'), '');
+    
+    if (observaciones.contains('(Cobro:')) {
+      final match = RegExp(r'\(Cobro:\s*(\$[^)]+)\)').firstMatch(observaciones);
+      if (match != null) {
+        String monto = match.group(1)!;
+        return '$monto de $nombre';
+      }
+    }
+    
+    if (observaciones.contains('(Pedido original:')) {
+      final match = RegExp(r'\(Pedido original:\s*([^\)]+)\)').firstMatch(observaciones);
+      if (match != null) {
+        String original = match.group(1)!;
+        return '$original de $nombre';
+      }
+    }
+
+    String unidadStr = unidadVenta.isNotEmpty ? ' $unidadVenta' : '';
+    if (unidadVenta == 'pieza' || unidadVenta == 'paquete') {
+       if (cantidad != 1) unidadStr = ' ${unidadVenta}s';
+    }
+
+    return '$cantStr$unidadStr de $nombre'.trim();
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -27,6 +56,7 @@ class TicketItem {
       'cantidad': cantidad,
       'precioUnitario': precioUnitario,
       'observaciones': observaciones,
+      'unidadVenta': unidadVenta,
       'subtotal': subtotal,
     };
   }
@@ -39,12 +69,14 @@ class TicketItem {
       cantidad: (map['cantidad'] ?? 0).toDouble(),
       precioUnitario: (map['precioUnitario'] ?? 0).toDouble(),
       observaciones: map['observaciones'] ?? '',
+      unidadVenta: map['unidadVenta'] ?? '',
     );
   }
 }
 
 class Ticket {
   String id;
+  String folio;
   String clienteId;
   String clienteNombre;
   Timestamp? fecha;
@@ -67,6 +99,7 @@ class Ticket {
 
   Ticket({
     this.id = '',
+    this.folio = '',
     required this.clienteId,
     required this.clienteNombre,
     this.fecha,
@@ -93,6 +126,7 @@ class Ticket {
 
     return Ticket(
       id: id,
+      folio: data['folio'] ?? id.substring(0, id.length > 8 ? 8 : id.length).toUpperCase(),
       clienteId: data['clienteId'] ?? '',
       clienteNombre: data['clienteNombre'] ?? '',
       fecha: data['fecha'],
@@ -114,6 +148,7 @@ class Ticket {
 
   Map<String, dynamic> toMap() {
     return {
+      'folio': folio,
       'clienteId': clienteId,
       'clienteNombre': clienteNombre,
       'fecha': fecha,

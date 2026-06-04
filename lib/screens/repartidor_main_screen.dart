@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/ticket_model.dart';
 import '../models/abono_model.dart';
+import '../models/cliente_model.dart';
 import '../services/firebase_service.dart';
 import '../services/pdf_service.dart';
 import '../providers/auth_provider.dart';
@@ -358,7 +359,7 @@ class _RepartidorMainScreenState extends State<RepartidorMainScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'TICKET #${ticket.id.substring(0, 8).toUpperCase()}',
+                        'TICKET #${ticket.folio}',
                         style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppTheme.primary, letterSpacing: 1),
                       ),
                       const SizedBox(height: 4),
@@ -448,7 +449,7 @@ class _RepartidorMainScreenState extends State<RepartidorMainScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('${p.cantidad.toStringAsFixed(1)} x ${p.nombre}', style: const TextStyle(fontSize: 14)),
+                  Text(p.descripcionAmigable, style: const TextStyle(fontSize: 14)),
                   Text(_currencyFormat.format(p.precioUnitario * p.cantidad), style: const TextStyle(fontSize: 14)),
                 ],
               ),

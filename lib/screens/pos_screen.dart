@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/cliente_model.dart';
@@ -11,8 +12,8 @@ import '../theme/app_theme.dart';
 import 'payment_success_screen.dart';
 
 class PosScreen extends StatefulWidget {
-  final Cliente cliente;
-  const PosScreen({super.key, required this.cliente});
+  final Cliente? cliente;
+  const PosScreen({super.key, this.cliente});
 
   @override
   State<PosScreen> createState() => _PosScreenState();
@@ -22,6 +23,17 @@ class _PosScreenState extends State<PosScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   String _searchQuery = '';
+
+  Cliente get _currentCliente => widget.cliente ?? Cliente(
+    id: '',
+    nombre: 'Público',
+    apPaterno: 'en General',
+    apMaterno: '',
+    celular: '',
+    correo: '',
+    telefono: '',
+    observaciones: '',
+  );
 
   Future<void> _mostrarDialogoConfiguracionProducto(BuildContext context, CartProvider cart, Producto producto, {CartItem? itemActual}) async {
     String modoVenta = 'Unidad Base'; // 'Unidad Base', 'Monto ($)', 'Gramos'
@@ -227,6 +239,108 @@ class _PosScreenState extends State<PosScreen> {
     );
   }
 
+  Widget _buildConceptoLibreCard(CartProvider cart, BuildContext context) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppTheme.accent.withValues(alpha: 0.5), width: 1.5),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _mostrarDialogoConceptoLibre(context, cart),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.add_circle_outline, color: AppTheme.accent),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Otro / Concepto Libre', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.accent)),
+                    SizedBox(height: 4),
+                    Text('Agregar un concepto o monto manual', style: TextStyle(fontSize: 12, color: AppTheme.textLight)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.grey),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _mostrarDialogoConceptoLibre(BuildContext context, CartProvider cart) async {
+    final TextEditingController conceptoCtrl = TextEditingController();
+    final TextEditingController montoCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Agregar Concepto Libre'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: conceptoCtrl,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Concepto / Nombre', border: OutlineInputBorder()),
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: montoCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Monto a Cobrar (\$)', prefixText: '\$ ', border: OutlineInputBorder()),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final nombre = conceptoCtrl.text.trim();
+                final monto = double.tryParse(montoCtrl.text) ?? 0.0;
+                if (nombre.isNotEmpty && monto > 0) {
+                  final productoManual = Producto(
+                    id: 'MANUAL_${DateTime.now().millisecondsSinceEpoch}',
+                    codigo: 'LIBRE',
+                    nombre: nombre,
+                    observaciones: 'Concepto libre ingresado manualmente',
+                    precio: monto,
+                    unidadVenta: 'pieza',
+                    categoria: 'Concepto Libre',
+                    seccion: 'general',
+                    createBy: '',
+                    createAt: Timestamp.now(),
+                  );
+                  cart.addItem(productoManual, cantidad: 1.0, precioUnitario: monto);
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Agregar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _mostrarDialogoCobro(BuildContext context, CartProvider cart) {
     if (cart.items.isEmpty) return;
 
@@ -396,8 +510,8 @@ class _PosScreenState extends State<PosScreen> {
 
                         if (itemsTienda.isNotEmpty) {
                           ticketTienda = Ticket(
-                            clienteId: widget.cliente.id,
-                            clienteNombre: '${widget.cliente.nombre} ${widget.cliente.apPaterno}',
+                            clienteId: _currentCliente.id,
+                            clienteNombre: '${_currentCliente.nombre} ${_currentCliente.apPaterno}',
                             tipoEntrega: 'Local',
                             estadoEntrega: 'Entregado',
                             productos: itemsTienda.map((i) {
@@ -408,6 +522,7 @@ class _PosScreenState extends State<PosScreen> {
                                 cantidad: i.cantidad,
                                 precioUnitario: i.precioUnitario,
                                 observaciones: i.observaciones,
+                                unidadVenta: i.producto.unidadVenta,
                               );
                             }).toList(),
                             totalVenta: totalTienda,
@@ -419,8 +534,8 @@ class _PosScreenState extends State<PosScreen> {
 
                         if (itemsDomicilio.isNotEmpty) {
                           ticketDomicilio = Ticket(
-                            clienteId: widget.cliente.id,
-                            clienteNombre: '${widget.cliente.nombre} ${widget.cliente.apPaterno}',
+                            clienteId: _currentCliente.id,
+                            clienteNombre: '${_currentCliente.nombre} ${_currentCliente.apPaterno}',
                             tipoEntrega: 'Domicilio',
                             repartidorId: repartidorId,
                             repartidorNombre: repartidorNombre,
@@ -433,6 +548,7 @@ class _PosScreenState extends State<PosScreen> {
                                 cantidad: i.cantidad,
                                 precioUnitario: i.precioUnitario,
                                 observaciones: i.observaciones,
+                                unidadVenta: i.producto.unidadVenta,
                               );
                             }).toList(),
                             totalVenta: totalDomicilio,
@@ -709,23 +825,39 @@ class _PosScreenState extends State<PosScreen> {
         }
         
         if (productos.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.search_off, size: 64, color: Colors.grey[300]),
-                const SizedBox(height: 16),
-                const Text('No se encontraron productos', style: TextStyle(color: AppTheme.textLight)),
-              ],
-            ),
+          return Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _buildConceptoLibreCard(cart, context),
+                    const SizedBox(height: 32),
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.search_off, size: 64, color: Colors.grey[300]),
+                          const SizedBox(height: 16),
+                          const Text('No se encontraron productos', style: TextStyle(color: AppTheme.textLight)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           );
         }
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: productos.length,
+          itemCount: productos.length + 1,
           itemBuilder: (context, index) {
-            final p = productos[index];
+            if (index == 0) {
+              return _buildConceptoLibreCard(cart, context);
+            }
+            final p = productos[index - 1];
             return Card(
               elevation: 0,
               margin: const EdgeInsets.only(bottom: 12),
@@ -904,7 +1036,7 @@ class _PosScreenState extends State<PosScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Nueva Venta', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-                Text('${widget.cliente.nombre} ${widget.cliente.apPaterno}', style: const TextStyle(fontSize: 13, color: AppTheme.textLight)),
+                Text('${_currentCliente.nombre} ${_currentCliente.apPaterno}', style: const TextStyle(fontSize: 13, color: AppTheme.textLight)),
               ],
             ),
             bottom: const TabBar(

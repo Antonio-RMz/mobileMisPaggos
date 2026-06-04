@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../models/cliente_model.dart';
 import '../models/ticket_model.dart';
 import '../models/abono_model.dart';
+import 'package:flutter/foundation.dart'; // Para kIsWeb
 
 class PdfService {
   static final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
@@ -31,7 +32,7 @@ class PdfService {
             children: [
               pw.Text('CARNICERÍA STEWARD', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 5),
-              pw.Text('Ticket #${ticket.id.substring(0, 8).toUpperCase()}', style: const pw.TextStyle(fontSize: 8)),
+              pw.Text('Ticket #${ticket.folio}', style: const pw.TextStyle(fontSize: 8)),
               pw.Text('Fecha: ${dateFormat.format(ticket.fecha?.toDate() ?? DateTime.now())}', style: const pw.TextStyle(fontSize: 8)),
               pw.SizedBox(height: 10),
               pw.Text('Cliente: ${ticket.clienteNombre}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
@@ -49,7 +50,7 @@ class PdfService {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            '${prod.cantidad}x ${prod.nombre}', 
+                            prod.descripcionAmigable, 
                             style: const pw.TextStyle(fontSize: 8)
                           ),
                           if (prod.observaciones.isNotEmpty)
@@ -108,13 +109,21 @@ class PdfService {
       ),
     );
 
-    // En lugar de usar layoutPdf, guardamos el archivo en caché temporal
-    final tempDir = await getTemporaryDirectory();
-    final file = File('${tempDir.path}/Ticket_${ticket.clienteNombre}.pdf');
-    await file.writeAsBytes(await pdf.save());
+    // Si estamos en Web, usamos Printing.sharePdf (que se encarga de descargar/mostrar el PDF)
+    if (kIsWeb) {
+      await Printing.sharePdf(
+        bytes: await pdf.save(),
+        filename: 'Ticket_${ticket.clienteNombre}.pdf',
+      );
+    } else {
+      // En móviles guardamos el archivo en caché temporal y usamos share_plus
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/Ticket_${ticket.clienteNombre}.pdf');
+      await file.writeAsBytes(await pdf.save());
 
-    // Compartir el archivo generado
-    await Share.shareXFiles([XFile(file.path)], text: 'Aquí tienes tu comprobante de compra.');
+      // Compartir el archivo generado
+      await Share.shareXFiles([XFile(file.path)], text: 'Aquí tienes tu comprobante de compra.');
+    }
   }
 
   /// Genera un Estado de Cuenta (Formato A4)
@@ -208,7 +217,7 @@ class PdfService {
                         pw.Row(
                           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                           children: [
-                            pw.Text('VENTA (Ticket: ${mov.id.substring(0, 8).toUpperCase()}) | Fecha: ${dateFormat.format(mov.fecha?.toDate() ?? DateTime.now())}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11, color: PdfColors.blue800)),
+                            pw.Text('VENTA (Ticket: ${mov.folio}) | Fecha: ${dateFormat.format(mov.fecha?.toDate() ?? DateTime.now())}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11, color: PdfColors.blue800)),
                             pw.Text(mov.estado, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11, color: mov.estado == 'Pagado' ? PdfColors.green700 : PdfColors.orange700)),
                           ]
                         ),
@@ -223,7 +232,7 @@ class PdfService {
                                 child: pw.Column(
                                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                                   children: [
-                                    pw.Text('- ${p.cantidad}x ${p.nombre}', style: const pw.TextStyle(fontSize: 10)),
+                                    pw.Text('- ${p.descripcionAmigable}', style: const pw.TextStyle(fontSize: 10)),
                                     if (p.observaciones.isNotEmpty)
                                       pw.Text(p.observaciones, style: const pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
                                   ]
@@ -311,7 +320,7 @@ class PdfService {
 
     pdf.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
+        pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(32),
         build: (pw.Context context) {
           return [
@@ -355,39 +364,22 @@ class PdfService {
             ),
             pw.SizedBox(height: 30),
 
-            // Ingresos (Abonos)
-            pw.Text('DETALLE DE INGRESOS (Efectivo Recibido)', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-            pw.Divider(),
-            if (abonos.isEmpty)
-              pw.Text('No hubo ingresos en este periodo.', style: const pw.TextStyle(color: PdfColors.grey))
-            else
-              pw.TableHelper.fromTextArray(
-                headers: ['Fecha', 'Tipo', 'Cliente', 'Monto'],
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-                headerDecoration: const pw.BoxDecoration(color: PdfColors.green800),
-                data: abonos.map((a) => [
-                  dateFormat.format(a.fecha?.toDate() ?? DateTime.now()),
-                  a.ticketId == null ? 'Abono General' : 'Abono a Ticket',
-                  'ID: ${a.clienteId.substring(0,5)}...', // Idealmente tendríamos el nombre, pero no está en AbonoModel
-                  currencyFormat.format(a.monto)
-                ]).toList(),
-              ),
-
             pw.SizedBox(height: 30),
 
-            // Ventas (Tickets)
-            pw.Text('DETALLE DE VENTAS (Mercancía Despachada)', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+            // Detalle unificado de Tickets
+            pw.Text('DETALLE DE TICKETS EMITIDOS', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
             if (tickets.isEmpty)
-              pw.Text('No hubo ventas en este periodo.', style: const pw.TextStyle(color: PdfColors.grey))
+              pw.Text('No se emitieron tickets en este periodo.', style: const pw.TextStyle(color: PdfColors.grey))
             else
               pw.TableHelper.fromTextArray(
-                headers: ['Fecha', 'Ticket', 'Total Venta', 'Abono Inicial', 'Deuda'],
+                headers: ['Fecha', 'Ticket', 'Cliente', 'Total Venta', 'Abono Inicial', 'Deuda'],
                 headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
                 headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
                 data: tickets.map((t) => [
                   dateFormat.format(t.fecha?.toDate() ?? DateTime.now()),
-                  t.id.substring(0, 8).toUpperCase(),
+                  t.folio,
+                  t.clienteNombre,
                   currencyFormat.format(t.totalVenta),
                   currencyFormat.format(t.totalAbonado),
                   currencyFormat.format(t.saldoRestante)
@@ -398,11 +390,18 @@ class PdfService {
       )
     );
 
-    final tempDir = await getTemporaryDirectory();
-    final file = File('${tempDir.path}/CorteCaja_${dateFormatShort.format(start).replaceAll('/', '-')}.pdf');
-    await file.writeAsBytes(await pdf.save());
+    if (kIsWeb) {
+      await Printing.sharePdf(
+        bytes: await pdf.save(),
+        filename: 'CorteCaja_${dateFormatShort.format(start).replaceAll('/', '-')}.pdf',
+      );
+    } else {
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/CorteCaja_${dateFormatShort.format(start).replaceAll('/', '-')}.pdf');
+      await file.writeAsBytes(await pdf.save());
 
-    await Share.shareXFiles([XFile(file.path)], text: 'Corte de Caja de ${dateFormatShort.format(start)} a ${dateFormatShort.format(end)}');
+      await Share.shareXFiles([XFile(file.path)], text: 'Corte de Caja de ${dateFormatShort.format(start)} a ${dateFormatShort.format(end)}');
+    }
   }
 
   /// Genera y comparte el PDF del Corte de Repartidor
@@ -483,7 +482,7 @@ class PdfService {
                 headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
                 data: tickets.map((t) => [
                   dateFormat.format(t.updateAt?.toDate() ?? DateTime.now()),
-                  t.id.substring(0, 8).toUpperCase(),
+                  t.folio,
                   t.clienteNombre,
                   currencyFormat.format(t.totalVenta),
                 ]).toList(),
@@ -493,11 +492,18 @@ class PdfService {
       )
     );
 
-    final tempDir = await getTemporaryDirectory();
-    final file = File('${tempDir.path}/Corte_${repartidorNombre.replaceAll(' ', '_')}_${dateFormatShort.format(start).replaceAll('/', '-')}.pdf');
-    await file.writeAsBytes(await pdf.save());
+    if (kIsWeb) {
+      await Printing.sharePdf(
+        bytes: await pdf.save(),
+        filename: 'Corte_${repartidorNombre.replaceAll(' ', '_')}_${dateFormatShort.format(start).replaceAll('/', '-')}.pdf',
+      );
+    } else {
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/Corte_${repartidorNombre.replaceAll(' ', '_')}_${dateFormatShort.format(start).replaceAll('/', '-')}.pdf');
+      await file.writeAsBytes(await pdf.save());
 
-    await Share.shareXFiles([XFile(file.path)], text: 'Corte de Repartidor de ${dateFormatShort.format(start)} a ${dateFormatShort.format(end)}');
+      await Share.shareXFiles([XFile(file.path)], text: 'Corte de Repartidor de ${dateFormatShort.format(start)} a ${dateFormatShort.format(end)}');
+    }
   }
 
   static pw.Widget _buildPdfSummaryItem(String title, double amount, PdfColor color, {bool isCurrency = true}) {

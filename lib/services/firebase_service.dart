@@ -63,7 +63,7 @@ class FirebaseService {
         return Cliente.fromMap(doc.id, doc.data() as Map<String, dynamic>);
       }
     } catch (e) {
-      debugPrint('Error obteniendo cliente: $e');
+      print('Error obteniendo cliente: $e');
     }
     return null;
   }
@@ -139,46 +139,62 @@ class FirebaseService {
   // =========================================================================
 
   Future<void> procesarVenta(Ticket ticket) async {
-    final batch = FirebaseFirestore.instance.batch();
-
-    // 1. Guardar el Ticket
-    final ticketRef = _ticketsCollection.doc();
-    ticket.fecha = Timestamp.now();
-    ticket.createAt = Timestamp.now();
-    ticket.updateAt = Timestamp.now();
-    batch.set(ticketRef, ticket.toMap());
-
-    // 2. Si hay abono inicial, guardar el Abono
-    if (ticket.totalAbonado > 0) {
-      final abonoRef = _abonosCollection.doc();
-      final abono = Abono(
-        clienteId: ticket.clienteId,
-        ticketId: ticketRef.id,
-        monto: ticket.totalAbonado,
-        fecha: Timestamp.now(),
-        createAt: Timestamp.now(),
-        updateAt: Timestamp.now(),
-      );
-      batch.set(abonoRef, abono.toMap());
-    }
-
-    // 3. Actualizar la Deuda Total del Cliente
-    final double saldoNuevo = ticket.saldoRestante;
-    if (saldoNuevo > 0 && ticket.clienteId.isNotEmpty) {
-      final clienteRef = _clientesCollection.doc(ticket.clienteId);
-      final doc = await clienteRef.get();
-      if (doc.exists) {
-        batch.update(clienteRef, {
-          'deuda_total': FieldValue.increment(saldoNuevo),
-          'updateAt': Timestamp.now()
-        });
-      }
-    }
-
     try {
-      await batch.commit().timeout(const Duration(seconds: 3));
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        // Leer documentos necesarios primero
+        final counterRef = FirebaseFirestore.instance.collection('metadata').doc('counters');
+        final counterDoc = await transaction.get(counterRef);
+        
+        final double saldoNuevo = ticket.saldoRestante;
+        DocumentSnapshot? clienteDoc;
+        if (saldoNuevo > 0 && ticket.clienteId.isNotEmpty) {
+          clienteDoc = await transaction.get(_clientesCollection.doc(ticket.clienteId));
+        }
+
+        // Calcular nuevo folio
+        int nextFolioNum = 1;
+        if (counterDoc.exists && counterDoc.data() != null && (counterDoc.data() as Map<String, dynamic>).containsKey('ticketFolio')) {
+          nextFolioNum = ((counterDoc.data() as Map<String, dynamic>)['ticketFolio'] as int) + 1;
+          transaction.update(counterRef, {'ticketFolio': nextFolioNum});
+        } else {
+          transaction.set(counterRef, {'ticketFolio': nextFolioNum}, SetOptions(merge: true));
+        }
+        
+        ticket.folio = nextFolioNum.toString().padLeft(6, '0');
+
+        // 1. Guardar el Ticket
+        final ticketRef = _ticketsCollection.doc();
+        ticket.fecha = Timestamp.now();
+        ticket.createAt = Timestamp.now();
+        ticket.updateAt = Timestamp.now();
+        transaction.set(ticketRef, ticket.toMap());
+
+        // 2. Si hay abono inicial, guardar el Abono
+        if (ticket.totalAbonado > 0) {
+          final abonoRef = _abonosCollection.doc();
+          final abono = Abono(
+            clienteId: ticket.clienteId,
+            ticketId: ticketRef.id,
+            monto: ticket.totalAbonado,
+            fecha: Timestamp.now(),
+            createAt: Timestamp.now(),
+            updateAt: Timestamp.now(),
+          );
+          transaction.set(abonoRef, abono.toMap());
+        }
+
+        // 3. Actualizar la Deuda Total del Cliente
+        if (clienteDoc != null && clienteDoc.exists) {
+          transaction.update(_clientesCollection.doc(ticket.clienteId), {
+            'deuda_total': FieldValue.increment(saldoNuevo),
+            'updateAt': Timestamp.now()
+          });
+        }
+      }).timeout(const Duration(seconds: 5));
     } on TimeoutException {
       // Se encola localmente
+    } catch (e) {
+      print('Error en procesarVenta: \$e');
     }
   }
 

@@ -76,6 +76,7 @@ class TicketItem {
 
 class Ticket {
   String id;
+  String empresaId;
   String folio;
   String clienteId;
   String clienteNombre;
@@ -91,6 +92,9 @@ class Ticket {
   String? repartidorNombre;
   String estadoEntrega; // 'Entregado', 'Pendiente', 'Cancelado'
   String? motivoCancelacion;
+  bool pagoRepartidorConfirmado;
+  String metodoPago; // 'Efectivo', 'Transferencia'
+  String? cobradoPor; // Quien recibió el dinero
 
   String createBy;
   Timestamp? createAt;
@@ -99,6 +103,7 @@ class Ticket {
 
   Ticket({
     this.id = '',
+    this.empresaId = '',
     this.folio = '',
     required this.clienteId,
     required this.clienteNombre,
@@ -112,6 +117,9 @@ class Ticket {
     this.repartidorNombre,
     this.estadoEntrega = 'Entregado',
     this.motivoCancelacion,
+    this.pagoRepartidorConfirmado = false,
+    this.metodoPago = 'Efectivo',
+    this.cobradoPor,
     this.createBy = 'Sistema',
     this.createAt,
     this.updateBy = 'Sistema',
@@ -126,6 +134,7 @@ class Ticket {
 
     return Ticket(
       id: id,
+      empresaId: data['empresaId'] ?? '',
       folio: data['folio'] ?? id.substring(0, id.length > 8 ? 8 : id.length).toUpperCase(),
       clienteId: data['clienteId'] ?? '',
       clienteNombre: data['clienteNombre'] ?? '',
@@ -139,6 +148,9 @@ class Ticket {
       repartidorNombre: data['repartidorNombre'],
       estadoEntrega: data['estadoEntrega'] ?? 'Entregado',
       motivoCancelacion: data['motivoCancelacion'],
+      pagoRepartidorConfirmado: data['pagoRepartidorConfirmado'] ?? false,
+      metodoPago: data['metodoPago'] ?? 'Efectivo',
+      cobradoPor: data['cobradoPor'],
       createBy: data['createBy'] ?? '',
       createAt: data['createAt'],
       updateBy: data['updateBy'] ?? '',
@@ -148,6 +160,7 @@ class Ticket {
 
   Map<String, dynamic> toMap() {
     return {
+      'empresaId': empresaId,
       'folio': folio,
       'clienteId': clienteId,
       'clienteNombre': clienteNombre,
@@ -162,6 +175,9 @@ class Ticket {
       'repartidorNombre': repartidorNombre,
       'estadoEntrega': estadoEntrega,
       'motivoCancelacion': motivoCancelacion,
+      'pagoRepartidorConfirmado': pagoRepartidorConfirmado,
+      'metodoPago': metodoPago,
+      'cobradoPor': cobradoPor,
       'createBy': createBy,
       'createAt': createAt,
       'updateBy': updateBy,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/personal_model.dart';
 import '../services/firebase_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,7 +16,7 @@ class PersonalFormModal extends StatefulWidget {
 
 class _PersonalFormModalState extends State<PersonalFormModal> {
   final _formKey = GlobalKey<FormState>();
-  final FirebaseService _firebaseService = FirebaseService();
+  FirebaseService get _firebaseService => Provider.of<FirebaseService>(context, listen: false);
 
   final TextEditingController _nombreCtrl = TextEditingController();
   final TextEditingController _telefonoCtrl = TextEditingController();

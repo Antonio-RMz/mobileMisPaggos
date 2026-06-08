@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Abono {
   String id;
+  String empresaId;
   String clienteId;
   String? ticketId; // Si es null, es un abono general a la cuenta
   String? repartidorId; // Agregado para saber qué repartidor cobró este efectivo
@@ -14,6 +15,7 @@ class Abono {
 
   Abono({
     this.id = '',
+    this.empresaId = '',
     required this.clienteId,
     this.ticketId,
     this.repartidorId,
@@ -28,6 +30,7 @@ class Abono {
   factory Abono.fromMap(String id, Map<String, dynamic> data) {
     return Abono(
       id: id,
+      empresaId: data['empresaId'] ?? '',
       clienteId: data['clienteId'] ?? '',
       ticketId: data['ticketId'],
       repartidorId: data['repartidorId'],
@@ -42,6 +45,7 @@ class Abono {
 
   Map<String, dynamic> toMap() {
     return {
+      'empresaId': empresaId,
       'clienteId': clienteId,
       'ticketId': ticketId,
       'repartidorId': repartidorId,

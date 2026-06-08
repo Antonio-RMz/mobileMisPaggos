@@ -39,38 +39,49 @@ class _MainScreenState extends State<MainScreen> {
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        backgroundColor: Colors.white,
-        elevation: 0,
-        indicatorColor: AppTheme.primary.withOpacity(0.15),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(LucideIcons.layoutDashboard),
-            selectedIcon: Icon(LucideIcons.layoutDashboard, color: AppTheme.accent),
-            label: 'Inicio',
-          ),
-          NavigationDestination(
-            icon: Icon(LucideIcons.users),
-            selectedIcon: Icon(LucideIcons.users, color: AppTheme.accent),
-            label: 'Clientes',
-          ),
-          NavigationDestination(
-            icon: Icon(LucideIcons.package),
-            selectedIcon: Icon(LucideIcons.package, color: AppTheme.accent),
-            label: 'Productos',
-          ),
-          NavigationDestination(
-            icon: Icon(LucideIcons.fileText),
-            selectedIcon: Icon(LucideIcons.fileText, color: AppTheme.accent),
-            label: 'Reportes',
-          ),
-        ],
+      bottomNavigationBar: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.slateBlue);
+            }
+            return const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textLight);
+          }),
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          backgroundColor: Colors.white,
+          elevation: 0,
+          indicatorColor: AppTheme.primary.withOpacity(0.15),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(LucideIcons.layoutDashboard, size: 24),
+              selectedIcon: Icon(LucideIcons.layoutDashboard, color: AppTheme.accent, size: 24),
+              label: 'Inicio',
+            ),
+            NavigationDestination(
+              icon: Icon(LucideIcons.users, size: 24),
+              selectedIcon: Icon(LucideIcons.users, color: AppTheme.accent, size: 24),
+              label: 'Clientes',
+            ),
+            NavigationDestination(
+              icon: Icon(LucideIcons.package, size: 24),
+              selectedIcon: Icon(LucideIcons.package, color: AppTheme.accent, size: 24),
+              label: 'Productos',
+            ),
+            NavigationDestination(
+              icon: Icon(LucideIcons.fileText, size: 24),
+              selectedIcon: Icon(LucideIcons.fileText, color: AppTheme.accent, size: 24),
+              label: 'Reportes',
+            ),
+          ],
+        ),
       ),
     );
   }

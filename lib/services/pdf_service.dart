@@ -56,7 +56,7 @@ class PdfService {
                           if (prod.observaciones.isNotEmpty)
                             pw.Text(
                               prod.observaciones,
-                              style: const pw.TextStyle(fontSize: 7, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)
+                              style: pw.TextStyle(fontSize: 7, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)
                             ),
                         ],
                       ),
@@ -234,7 +234,7 @@ class PdfService {
                                   children: [
                                     pw.Text('- ${p.descripcionAmigable}', style: const pw.TextStyle(fontSize: 10)),
                                     if (p.observaciones.isNotEmpty)
-                                      pw.Text(p.observaciones, style: const pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
+                                      pw.Text(p.observaciones, style: pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
                                   ]
                                 )
                               ),

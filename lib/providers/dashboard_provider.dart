@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/cliente_model.dart';
 import '../models/ticket_model.dart';
+import 'user_provider.dart';
 
 class DashboardProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  UserProvider? _userProvider;
+
+  void updateUserProvider(UserProvider userProvider) {
+    _userProvider = userProvider;
+  }
 
   double _totalPorCobrar = 0.0;
   double _ventasDelMes = 0.0;
@@ -33,9 +39,12 @@ class DashboardProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      final empresaId = _userProvider?.empresaId ?? '';
+
       // 1. Cuentas por cobrar (sumando deudas > 0)
       final clientesSnapshot = await _firestore
           .collection('clientes')
+          .where('empresaId', isEqualTo: empresaId)
           .get();
 
       double totalDeuda = 0.0;
@@ -62,12 +71,16 @@ class DashboardProvider with ChangeNotifier {
 
       final ticketsSnapshot = await _firestore
           .collection('tickets')
+          .where('empresaId', isEqualTo: empresaId)
           .where('fecha', isGreaterThanOrEqualTo: inicioMes)
           .where('fecha', isLessThanOrEqualTo: finMes)
           .get();
 
       // Obtener todos los productos para saber su sección
-      final productosSnapshot = await _firestore.collection('productos').get();
+      final productosSnapshot = await _firestore
+          .collection('productos')
+          .where('empresaId', isEqualTo: empresaId)
+          .get();
       Map<String, String> productoSeccion = {};
       Map<String, String> productoNombre = {};
       for (var doc in productosSnapshot.docs) {
@@ -96,12 +109,12 @@ class DashboardProvider with ChangeNotifier {
         if (esDeHoy) {
           totalVentasHoy += ticket.totalVenta;
           if (ticket.tipoEntrega == 'Domicilio') {
-            if (ticket.estadoEntrega == 'Pendiente') {
-              enReparto++;
-            } else if (ticket.estadoEntrega == 'Entregado') {
-              enviadas++;
-            } else if (ticket.estadoEntrega == 'Cancelado') {
+            if (ticket.estadoEntrega == 'Cancelado') {
               canceladas++;
+            } else if (ticket.pagoRepartidorConfirmado) {
+              enviadas++; // Ahora significa "Completadas"
+            } else {
+              enReparto++;
             }
           }
         }

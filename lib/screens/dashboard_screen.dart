@@ -8,7 +8,8 @@ import '../providers/dashboard_provider.dart';
 import '../models/cliente_model.dart';
 import 'cliente_profile_screen.dart';
 import '../widgets/app_drawer.dart';
-import 'pos_screen.dart';
+import 'cliente_list_screen.dart';
+import 'entregas_list_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -35,7 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: AppTheme.background,
       drawer: const AppDrawer(),
       appBar: AppBar(
-        title: const Text('MisPaggos'),
+        title: const Text('MisPaggos', style: TextStyle(fontSize: 24)),
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -43,27 +44,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
           color: AppTheme.primary,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(),
-                const SizedBox(height: 30),
+                const SizedBox(height: 24),
+
                 _buildMetricsCards(context),
-                const SizedBox(height: 30),
+                const SizedBox(height: 32),
                 _buildDeliveryStatus(context),
-                const SizedBox(height: 30),
-                Text(
+                const SizedBox(height: 32),
+                const Text(
                   'Atención Prioritaria (Top Morosos)',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textDark,
                   ),
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 16),
                 _buildTopMorososList(context),
-                const SizedBox(height: 30),
+                const SizedBox(height: 32),
                 _buildTopProducts(context),
               ],
             ),
@@ -74,12 +76,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const PosScreen()),
+            MaterialPageRoute(builder: (_) => const ClienteListScreen(isSelectingForOrder: true)),
           );
         },
+        icon: const Icon(LucideIcons.truck, color: Colors.white),
+        label: const Text('NUEVO PEDIDO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
         backgroundColor: AppTheme.accent,
-        icon: const Icon(LucideIcons.shoppingBag, color: Colors.white),
-        label: const Text('Venta Rápida', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        elevation: 4,
       ),
     );
   }
@@ -88,46 +91,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Hola,',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppTheme.textLight,
-                fontWeight: FontWeight.w500,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Hola,',
+                style: TextStyle(
+                  fontSize: 20,
+                  color: AppTheme.textLight,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            Text(
-              'Resumen del Negocio',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textDark,
-                letterSpacing: -0.5,
+              const Text(
+                'Resumen del Negocio',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.textDark,
+                  letterSpacing: -0.5,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         Row(
           children: [
             IconButton(
+              iconSize: 32,
               icon: Icon(_censurarDatos ? LucideIcons.eyeOff : LucideIcons.eye, color: AppTheme.textLight),
               onPressed: () {
                 setState(() {
                   _censurarDatos = !_censurarDatos;
                 });
               },
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppTheme.cardHighlight,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(LucideIcons.activity, color: AppTheme.primary, size: 28),
             ),
           ],
         ),
@@ -152,7 +149,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               borderColor: AppTheme.accent,
               textColor: AppTheme.textDark,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
@@ -196,34 +193,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
     bool small = false,
   }) {
     return Container(
-      padding: EdgeInsets.all(small ? 16 : 20),
+      padding: EdgeInsets.all(small ? 12 : 16),
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: borderColor.withOpacity(0.5), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: small ? 14 : 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textLight,
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: small ? 13 : 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textLight,
+                  ),
                 ),
               ),
-              Icon(icon, color: borderColor, size: small ? 24 : 32),
+              const SizedBox(width: 8),
+              Icon(icon, color: borderColor, size: small ? 24 : 28),
             ],
           ),
-          SizedBox(height: small ? 8 : 12),
+          SizedBox(height: small ? 6 : 10),
           Text(
             _censurarDatos ? '\$***.**' : currencyFormat.format(amount),
             style: TextStyle(
-              fontSize: small ? 24 : 32,
+              fontSize: small ? 20 : 28,
               fontWeight: FontWeight.bold,
               color: textColor,
               letterSpacing: -0.5,
@@ -242,12 +243,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
 
         if (dashboard.topMorosos.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppTheme.success.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.success.withOpacity(0.3), width: 2),
+            ),
+            child: const Center(
               child: Text(
                 '¡Excelente! No hay clientes con deuda.',
-                style: TextStyle(color: AppTheme.success, fontSize: 16, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.success, fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
           );
@@ -257,7 +264,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: dashboard.topMorosos.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          separatorBuilder: (context, index) => const SizedBox(height: 16),
           itemBuilder: (context, index) {
             final cliente = dashboard.topMorosos[index];
             return _buildMorosoTile(context, cliente, index);
@@ -271,34 +278,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade300, width: 1.5),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
+          radius: 22,
           backgroundColor: Color(cliente.colorPerfil),
           foregroundColor: AppTheme.slateBlue,
           child: Text(
             cliente.iniciales,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
         ),
         title: Text(
           cliente.nombreCompleto,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        subtitle: Text(
-          'Toque para ver detalles',
+        subtitle: const Text(
+          'Tocar para ver historial',
           style: TextStyle(color: AppTheme.textLight, fontSize: 12),
         ),
-        trailing: Text(
-          currencyFormat.format(cliente.deudaTotal),
-          style: TextStyle(
-            color: AppTheme.error,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            const Text('Debe', style: TextStyle(color: AppTheme.textLight, fontSize: 11)),
+            Text(
+              currencyFormat.format(cliente.deudaTotal),
+              style: const TextStyle(
+                color: AppTheme.error,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
         ),
         onTap: () {
           Navigator.push(
@@ -320,46 +335,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Estado de Envíos (Hoy)',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textDark),
                 ),
-                Icon(LucideIcons.truck, color: AppTheme.primary),
+                Icon(LucideIcons.map, color: AppTheme.primary, size: 32),
               ],
             ),
-            const SizedBox(height: 15),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatusCard(
-                    title: 'En Reparto',
-                    count: dashboard.entregasEnReparto,
-                    color: Colors.orange,
-                    icon: LucideIcons.packageOpen,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildStatusCard(
-                    title: 'Enviados',
-                    count: dashboard.entregasEnviadas,
-                    color: AppTheme.success,
-                    icon: LucideIcons.checkCircle2,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildStatusCard(
-                    title: 'Cancelados',
-                    count: dashboard.entregasCanceladas,
-                    color: AppTheme.error,
-                    icon: LucideIcons.xCircle,
-                  ),
-                ),
-              ],
+            const SizedBox(height: 20),
+            _buildStatusCard(
+              context: context,
+              title: 'En Reparto (Pendientes)',
+              count: dashboard.entregasEnReparto,
+              color: Colors.orange.shade700,
+              icon: LucideIcons.packageOpen,
+              estadoFiltro: 'Pendiente',
+            ),
+            _buildStatusCard(
+              context: context,
+              title: 'Completados (Entregados)',
+              count: dashboard.entregasEnviadas,
+              color: AppTheme.success,
+              icon: LucideIcons.checkCircle2,
+              estadoFiltro: 'Completados',
+            ),
+            _buildStatusCard(
+              context: context,
+              title: 'Cancelados',
+              count: dashboard.entregasCanceladas,
+              color: AppTheme.error,
+              icon: LucideIcons.xCircle,
+              estadoFiltro: 'Cancelado',
             ),
           ],
         );
@@ -367,36 +376,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatusCard({required String title, required int count, required Color color, required IconData icon}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 8),
-          Text(
-            count.toString(),
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+  Widget _buildStatusCard({
+    required BuildContext context,
+    required String title,
+    required int count,
+    required Color color,
+    required IconData icon,
+    required String estadoFiltro,
+  }) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EntregasListScreen(title: title, estadoEntregaFiltro: estadoFiltro),
           ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textLight),
-          ),
-        ],
+        ).then((_) {
+          if (context.mounted) {
+            context.read<DashboardProvider>().cargarMetricas();
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.4), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            )
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textDark),
+              ),
+            ),
+            Text(
+              count.toString(),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 24),
+          ],
+        ),
       ),
     );
   }
@@ -414,25 +455,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Productos Más Vendidos',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textDark),
             ),
-            const SizedBox(height: 15),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (carnes.isNotEmpty)
-                  Expanded(
-                    child: _buildProductList('Carnicería', carnes, Colors.redAccent),
-                  ),
-                if (carnes.isNotEmpty && catalogo.isNotEmpty) const SizedBox(width: 16),
-                if (catalogo.isNotEmpty)
-                  Expanded(
-                    child: _buildProductList('Catálogo', catalogo, AppTheme.primary),
-                  ),
-              ],
-            ),
+            const SizedBox(height: 20),
+            if (carnes.isNotEmpty)
+               _buildProductList('Carnicería', carnes, Colors.redAccent),
+            if (carnes.isNotEmpty && catalogo.isNotEmpty) const SizedBox(height: 16),
+            if (catalogo.isNotEmpty)
+               _buildProductList('Catálogo', catalogo, AppTheme.primary),
           ],
         );
       },
@@ -441,30 +473,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildProductList(String title, List<MapEntry<String, double>> items, Color color) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: Colors.grey.shade300, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(title == 'Carnicería' ? Icons.set_meal : Icons.inventory_2, color: color, size: 20),
-              const SizedBox(width: 8),
-              Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color)),
+              Icon(title == 'Carnicería' ? Icons.set_meal : Icons.inventory_2, color: color, size: 28),
+              const SizedBox(width: 12),
+              Text(title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: color)),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           ...items.map((entry) => Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
+            padding: const EdgeInsets.only(bottom: 12.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(child: Text(entry.key, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                Text('${entry.value.toStringAsFixed(1)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Expanded(child: Text(entry.key, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500))),
+                Text('${entry.value.toStringAsFixed(1)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               ],
             ),
           )).toList(),

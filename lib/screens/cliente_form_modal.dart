@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/cliente_model.dart';
 import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
@@ -14,7 +15,7 @@ class ClienteFormModal extends StatefulWidget {
 
 class _ClienteFormModalState extends State<ClienteFormModal> {
   final _formKey = GlobalKey<FormState>();
-  final FirebaseService _firebaseService = FirebaseService();
+  FirebaseService get _firebaseService => Provider.of<FirebaseService>(context, listen: false);
 
   final TextEditingController _nombreCtrl = TextEditingController();
   final TextEditingController _apPaternoCtrl = TextEditingController();
@@ -37,6 +38,7 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
     0xFFFBCFE8, // Rosa pastel (pink-200)
   ];
   int _selectedColor = 0xFFA7F3D0;
+  bool _isDistinguido = false;
 
   bool _isSaving = false;
 
@@ -55,6 +57,7 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
       _apodoCtrl.text = widget.cliente!.apodo;
       _referenciasDireccionCtrl.text = widget.cliente!.referenciasDireccion;
       _selectedColor = widget.cliente!.colorPerfil;
+      _isDistinguido = widget.cliente!.isDistinguido;
     }
   }
 
@@ -93,6 +96,7 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
             apodo: _apodoCtrl.text.trim(),
             referenciasDireccion: _referenciasDireccionCtrl.text.trim(),
             colorPerfil: _selectedColor,
+            isDistinguido: _isDistinguido,
           );
           await _firebaseService.addCliente(nuevoCliente);
         } else {
@@ -107,6 +111,7 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
           widget.cliente!.apodo = _apodoCtrl.text.trim();
           widget.cliente!.referenciasDireccion = _referenciasDireccionCtrl.text.trim();
           widget.cliente!.colorPerfil = _selectedColor;
+          widget.cliente!.isDistinguido = _isDistinguido;
           await _firebaseService.updateCliente(widget.cliente!);
         }
 
@@ -242,6 +247,21 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
 
                     _buildLabel('Color de Perfil'),
                     _buildColorPicker(),
+                    const SizedBox(height: 16),
+
+                    SwitchListTile(
+                      title: const Text('Cliente Distinguido', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                      subtitle: const Text('Asignar insignia de cliente distinguido', style: TextStyle(fontSize: 12)),
+                      secondary: Icon(Icons.star, color: _isDistinguido ? Colors.amber : Colors.grey),
+                      value: _isDistinguido,
+                      onChanged: (bool value) {
+                        setState(() {
+                          _isDistinguido = value;
+                        });
+                      },
+                      activeColor: Colors.amber,
+                      contentPadding: EdgeInsets.zero,
+                    ),
                     const SizedBox(height: 16),
 
                     _buildLabel('Teléfono Móvil (Celular)'),

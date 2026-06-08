@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/producto_model.dart';
 import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
@@ -13,8 +14,10 @@ class CarniceriaView extends StatefulWidget {
 }
 
 class _CarniceriaViewState extends State<CarniceriaView> {
-  final FirebaseService _firebaseService = FirebaseService();
+  FirebaseService get _firebaseService => Provider.of<FirebaseService>(context, listen: false);
   String _searchQuery = '';
+  String _filtroCategoria = 'Todos';
+  final List<String> _categorias = ['Todos', 'Res', 'Cerdo', 'Cremería', 'Pollo', 'Otros'];
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
 
   void _mostrarModalAlta(BuildContext context) {
@@ -184,6 +187,39 @@ class _CarniceriaViewState extends State<CarniceriaView> {
             ),
           ),
 
+          // Categorías Filter
+          SizedBox(
+            height: 50,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _categorias.length,
+              itemBuilder: (context, index) {
+                final cat = _categorias[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: ChoiceChip(
+                    label: Text(cat),
+                    selected: _filtroCategoria == cat,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _filtroCategoria = cat;
+                        });
+                      }
+                    },
+                    selectedColor: Colors.redAccent.withOpacity(0.2),
+                    labelStyle: TextStyle(
+                      color: _filtroCategoria == cat ? Colors.redAccent : AppTheme.textLight,
+                      fontWeight: _filtroCategoria == cat ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+
           // Lista de Productos
           Expanded(
             child: StreamBuilder<List<Producto>>(
@@ -201,11 +237,11 @@ class _CarniceriaViewState extends State<CarniceriaView> {
                 }
 
                 final todos = snapshot.data ?? [];
-                // Filtrar localmente por búsqueda y SOLO 'carniceria'
                 final productos = todos.where((p) {
                   final esCarniceria = p.seccion == 'carniceria';
                   final matchBusqueda = p.nombre.toLowerCase().contains(_searchQuery);
-                  return esCarniceria && matchBusqueda;
+                  final matchCategoria = _filtroCategoria == 'Todos' || p.categoria == _filtroCategoria;
+                  return esCarniceria && matchBusqueda && matchCategoria;
                 }).toList();
 
                 if (productos.isEmpty && _searchQuery.isNotEmpty) {

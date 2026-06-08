@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/producto_model.dart';
 import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
@@ -14,7 +15,7 @@ class ProductoFormModal extends StatefulWidget {
 
 class _ProductoFormModalState extends State<ProductoFormModal> {
   final _formKey = GlobalKey<FormState>();
-  final FirebaseService _firebaseService = FirebaseService();
+  FirebaseService get _firebaseService => Provider.of<FirebaseService>(context, listen: false);
 
   final TextEditingController _nombreCtrl = TextEditingController();
   final TextEditingController _codigoCtrl = TextEditingController();

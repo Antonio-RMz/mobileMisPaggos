@@ -20,27 +20,42 @@ class FirebaseService {
   final CollectionReference _personalCollection = 
       FirebaseFirestore.instance.collection('personal');
 
+  final String empresaId;
+
+  FirebaseService({required this.empresaId});
+
   // =========================================================================
   // CLIENTES
   // =========================================================================
 
   /// Método para insertar un nuevo cliente en Firestore (Create)
   Future<void> addCliente(Cliente cliente) async {
+    cliente.empresaId = empresaId;
     cliente.createAt = Timestamp.now();
     cliente.updateAt = Timestamp.now();
     cliente.createBy = 'Sistema'; // Aquí iría el ID del usuario logueado
     cliente.updateBy = 'Sistema';
     
+    final docRef = _clientesCollection.doc();
+    cliente.id = docRef.id;
+    
     try {
-      await _clientesCollection.add(cliente.toMap()).timeout(const Duration(seconds: 3));
+      await docRef.set(cliente.toMap()).timeout(const Duration(seconds: 3));
     } on TimeoutException {
-      // Se encola localmente
+      // Se encola localmente en cache
+    } catch (e) {
+      if (!e.toString().contains('UNAVAILABLE')) {
+        print('Error en addCliente: $e');
+      }
     }
   }
 
   /// Método para leer y obtener la lista de clientes en tiempo real (Read)
   Stream<List<Cliente>> getClientesStream() {
-    return _clientesCollection.snapshots().map((snapshot) {
+    return _clientesCollection
+        .where('empresaId', isEqualTo: empresaId)
+        .snapshots(includeMetadataChanges: true)
+        .map((snapshot) {
       final list = snapshot.docs.map((doc) {
         return Cliente.fromMap(doc.id, doc.data() as Map<String, dynamic>);
       }).toList();
@@ -93,19 +108,31 @@ class FirebaseService {
   // =========================================================================
 
   Future<void> addProducto(Producto producto) async {
+    producto.empresaId = empresaId;
     producto.createAt = Timestamp.now();
     producto.updateAt = Timestamp.now();
     producto.createBy = 'Sistema';
     producto.updateBy = 'Sistema';
+    
+    final docRef = _productosCollection.doc();
+    producto.id = docRef.id;
+    
     try {
-      await _productosCollection.add(producto.toMap()).timeout(const Duration(seconds: 3));
+      await docRef.set(producto.toMap()).timeout(const Duration(seconds: 3));
     } on TimeoutException {
       // Se encola localmente
+    } catch (e) {
+      if (!e.toString().contains('UNAVAILABLE')) {
+        print('Error en addProducto: $e');
+      }
     }
   }
 
   Stream<List<Producto>> getProductosStream() {
-    return _productosCollection.snapshots().map((snapshot) {
+    return _productosCollection
+        .where('empresaId', isEqualTo: empresaId)
+        .snapshots(includeMetadataChanges: true)
+        .map((snapshot) {
       final list = snapshot.docs.map((doc) {
         return Producto.fromMap(doc.id, doc.data() as Map<String, dynamic>);
       }).toList();
@@ -131,6 +158,44 @@ class FirebaseService {
       await _productosCollection.doc(id).delete().timeout(const Duration(seconds: 3));
     } on TimeoutException {
       // Se encola localmente
+    }
+  }
+
+  Future<String> getSiguienteCodigoCarniceria() async {
+    try {
+      final snapshot = await _productosCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .where('seccion', isEqualTo: 'carniceria')
+          .get(const GetOptions(source: Source.serverAndCache));
+      
+      if (snapshot.docs.isEmpty) return 'A001';
+
+      String maxCode = 'A000';
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final String code = data['codigo'] ?? '';
+        if (code.length == 4 && RegExp(r'^[A-Z][0-9]{3}$').hasMatch(code)) {
+          if (code.compareTo(maxCode) > 0) {
+            maxCode = code;
+          }
+        }
+      }
+
+      if (maxCode == 'A000') return 'A001';
+
+      String letra = maxCode.substring(0, 1);
+      int numero = int.parse(maxCode.substring(1));
+
+      numero++;
+      if (numero > 999) {
+        letra = String.fromCharCode(letra.codeUnitAt(0) + 1);
+        numero = 1;
+      }
+
+      return '$letra${numero.toString().padLeft(3, '0')}';
+    } catch (e) {
+      print('Error generando código: $e');
+      return 'A001';
     }
   }
 
@@ -160,10 +225,12 @@ class FirebaseService {
           transaction.set(counterRef, {'ticketFolio': nextFolioNum}, SetOptions(merge: true));
         }
         
+        ticket.empresaId = empresaId;
         ticket.folio = nextFolioNum.toString().padLeft(6, '0');
 
         // 1. Guardar el Ticket
         final ticketRef = _ticketsCollection.doc();
+        ticket.id = ticketRef.id;
         ticket.fecha = Timestamp.now();
         ticket.createAt = Timestamp.now();
         ticket.updateAt = Timestamp.now();
@@ -173,6 +240,7 @@ class FirebaseService {
         if (ticket.totalAbonado > 0) {
           final abonoRef = _abonosCollection.doc();
           final abono = Abono(
+            empresaId: empresaId,
             clienteId: ticket.clienteId,
             ticketId: ticketRef.id,
             monto: ticket.totalAbonado,
@@ -190,19 +258,243 @@ class FirebaseService {
             'updateAt': Timestamp.now()
           });
         }
-      }).timeout(const Duration(seconds: 5));
+      }).timeout(const Duration(seconds: 3));
     } on TimeoutException {
-      // Se encola localmente
+      await _procesarVentaOffline(ticket);
     } catch (e) {
-      print('Error en procesarVenta: \$e');
+      if (e.toString().contains('UNAVAILABLE') || e.toString().contains('failed to get document')) {
+        await _procesarVentaOffline(ticket);
+      } else {
+        print('Error en procesarVenta: $e');
+      }
     }
+  }
+
+  Future<void> _procesarVentaOffline(Ticket ticket) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      
+      // Intentar leer el contador desde cache
+      int nextFolioNum = 1;
+      try {
+        final counterRef = FirebaseFirestore.instance.collection('metadata').doc('counters');
+        final counterDoc = await counterRef.get(const GetOptions(source: Source.cache));
+        if (counterDoc.exists && counterDoc.data() != null && (counterDoc.data() as Map<String, dynamic>).containsKey('ticketFolio')) {
+          nextFolioNum = ((counterDoc.data() as Map<String, dynamic>)['ticketFolio'] as int) + 1;
+          batch.update(counterRef, {'ticketFolio': nextFolioNum});
+        }
+      } catch (e) {
+        // Ignorar si no hay cache
+      }
+      
+      String folioTemp = 'OFF-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+      if (nextFolioNum > 1) {
+          folioTemp = nextFolioNum.toString().padLeft(6, '0');
+      }
+      ticket.empresaId = empresaId;
+      ticket.folio = folioTemp;
+
+      // 1. Guardar el Ticket
+      final ticketRef = _ticketsCollection.doc();
+      ticket.id = ticketRef.id;
+      ticket.fecha = Timestamp.now();
+      ticket.createAt = Timestamp.now();
+      ticket.updateAt = Timestamp.now();
+      batch.set(ticketRef, ticket.toMap());
+
+      // 2. Si hay abono inicial, guardar el Abono
+      if (ticket.totalAbonado > 0) {
+        final abonoRef = _abonosCollection.doc();
+        final abono = Abono(
+          empresaId: empresaId,
+          clienteId: ticket.clienteId,
+          ticketId: ticketRef.id,
+          monto: ticket.totalAbonado,
+          fecha: Timestamp.now(),
+          createAt: Timestamp.now(),
+          updateAt: Timestamp.now(),
+        );
+        batch.set(abonoRef, abono.toMap());
+      }
+
+      // 3. Actualizar la Deuda Total del Cliente
+      if (ticket.saldoRestante > 0 && ticket.clienteId.isNotEmpty) {
+        batch.update(_clientesCollection.doc(ticket.clienteId), {
+          'deuda_total': FieldValue.increment(ticket.saldoRestante),
+          'updateAt': Timestamp.now()
+        });
+      }
+
+      // Ejecutamos en fire-and-forget para que Firestore lo guarde en cache y regresemos control a la UI
+      batch.commit().catchError((e) => print('Error commit offline: $e'));
+    } catch (e) {
+      print('Error en _procesarVentaOffline: $e');
+    }
+  }
+
+  /// Cancela un ticket y revierte la deuda si aplica
+  Future<void> cancelarTicket(Ticket ticket, String motivo) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        DocumentSnapshot? clienteDoc;
+        final clienteRef = _clientesCollection.doc(ticket.clienteId);
+
+        // 1. LECTURAS (Deben ir antes de las escrituras)
+        if (ticket.saldoRestante > 0 && ticket.clienteId.isNotEmpty) {
+          clienteDoc = await transaction.get(clienteRef);
+        }
+
+        // 2. ESCRITURAS
+        final ticketRef = _ticketsCollection.doc(ticket.id);
+        transaction.update(ticketRef, {
+          'estadoEntrega': 'Cancelado',
+          'motivoCancelacion': motivo,
+          'updateAt': Timestamp.now()
+        });
+
+        if (clienteDoc != null && clienteDoc.exists) {
+          transaction.update(clienteRef, {
+            'deuda_total': FieldValue.increment(-ticket.saldoRestante),
+            'updateAt': Timestamp.now()
+          });
+        }
+      }).timeout(const Duration(seconds: 3));
+    } on TimeoutException {
+      await _cancelarTicketOffline(ticket, motivo);
+    } catch (e) {
+      if (e.toString().contains('UNAVAILABLE') || e.toString().contains('failed to get document')) {
+        await _cancelarTicketOffline(ticket, motivo);
+      } else {
+        print('Error cancelando ticket: $e');
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> _cancelarTicketOffline(Ticket ticket, String motivo) async {
+    final batch = FirebaseFirestore.instance.batch();
+    
+    final ticketRef = _ticketsCollection.doc(ticket.id);
+    batch.update(ticketRef, {
+      'estadoEntrega': 'Cancelado',
+      'motivoCancelacion': motivo,
+      'updateAt': Timestamp.now()
+    });
+
+    if (ticket.saldoRestante > 0 && ticket.clienteId.isNotEmpty) {
+      final clienteRef = _clientesCollection.doc(ticket.clienteId);
+      batch.update(clienteRef, {
+        'deuda_total': FieldValue.increment(-ticket.saldoRestante),
+        'updateAt': Timestamp.now()
+      });
+    }
+
+    batch.commit().catchError((e) => print('Error _cancelarTicketOffline: $e'));
+  }
+
+  /// Confirma que el repartidor entregó el dinero
+  Future<void> confirmarPagoRepartidor(Ticket ticket, {String metodoPago = 'Efectivo', String? cobradoPor}) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        DocumentSnapshot? clienteDoc;
+        final clienteRef = _clientesCollection.doc(ticket.clienteId);
+
+        // 1. LECTURAS
+        if (ticket.saldoRestante > 0 && ticket.clienteId.isNotEmpty) {
+          clienteDoc = await transaction.get(clienteRef);
+        }
+
+        // 2. ESCRITURAS
+        final ticketRef = _ticketsCollection.doc(ticket.id);
+        
+        transaction.update(ticketRef, {
+          'pagoRepartidorConfirmado': true,
+          'metodoPago': metodoPago,
+          'cobradoPor': cobradoPor,
+          'totalAbonado': ticket.totalVenta,
+          'estadoEntrega': 'Entregado',
+          'estado': 'Pagado',
+          'updateAt': Timestamp.now()
+        });
+
+        if (ticket.saldoRestante > 0) {
+          final abonoRef = _abonosCollection.doc();
+          final abono = Abono(
+            empresaId: empresaId,
+            clienteId: ticket.clienteId,
+            ticketId: ticket.id,
+            monto: ticket.saldoRestante, // El monto que faltaba
+            fecha: Timestamp.now(),
+            createAt: Timestamp.now(),
+            updateAt: Timestamp.now(),
+          );
+          transaction.set(abonoRef, abono.toMap());
+
+          if (clienteDoc != null && clienteDoc.exists) {
+            transaction.update(clienteRef, {
+              'deuda_total': FieldValue.increment(-ticket.saldoRestante),
+              'updateAt': Timestamp.now()
+            });
+          }
+        }
+      }).timeout(const Duration(seconds: 3));
+    } on TimeoutException {
+      await _confirmarPagoRepartidorOffline(ticket, metodoPago: metodoPago, cobradoPor: cobradoPor);
+    } catch (e) {
+      if (e.toString().contains('UNAVAILABLE') || e.toString().contains('failed to get document')) {
+        await _confirmarPagoRepartidorOffline(ticket, metodoPago: metodoPago, cobradoPor: cobradoPor);
+      } else {
+        print('Error confirmando pago repartidor: $e');
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> _confirmarPagoRepartidorOffline(Ticket ticket, {String metodoPago = 'Efectivo', String? cobradoPor}) async {
+    final batch = FirebaseFirestore.instance.batch();
+    
+    final ticketRef = _ticketsCollection.doc(ticket.id);
+    batch.update(ticketRef, {
+      'pagoRepartidorConfirmado': true,
+      'metodoPago': metodoPago,
+      'cobradoPor': cobradoPor,
+      'totalAbonado': ticket.totalVenta,
+      'estadoEntrega': 'Entregado',
+      'estado': 'Pagado',
+      'updateAt': Timestamp.now()
+    });
+
+    if (ticket.saldoRestante > 0) {
+      final abonoRef = _abonosCollection.doc();
+      final abono = Abono(
+        empresaId: empresaId,
+        clienteId: ticket.clienteId,
+        ticketId: ticket.id,
+        monto: ticket.saldoRestante,
+        fecha: Timestamp.now(),
+        createAt: Timestamp.now(),
+        updateAt: Timestamp.now(),
+      );
+      batch.set(abonoRef, abono.toMap());
+
+      if (ticket.clienteId.isNotEmpty) {
+        final clienteRef = _clientesCollection.doc(ticket.clienteId);
+        batch.update(clienteRef, {
+          'deuda_total': FieldValue.increment(-ticket.saldoRestante),
+          'updateAt': Timestamp.now()
+        });
+      }
+    }
+
+    batch.commit().catchError((e) => print('Error _confirmarPagoRepartidorOffline: $e'));
   }
 
   /// Trae todos los tickets de un cliente, ordenados por fecha descendente
   Stream<List<Ticket>> getTicketsByCliente(String clienteId) {
     return _ticketsCollection
+        .where('empresaId', isEqualTo: empresaId)
         .where('clienteId', isEqualTo: clienteId)
-        .snapshots()
+        .snapshots(includeMetadataChanges: true)
         .map((snapshot) {
       final list = snapshot.docs.map((doc) {
         return Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>);
@@ -221,8 +513,9 @@ class FirebaseService {
   /// Trae todos los abonos de un cliente, ordenados por fecha descendente
   Stream<List<Abono>> getAbonosByCliente(String clienteId) {
     return _abonosCollection
+        .where('empresaId', isEqualTo: empresaId)
         .where('clienteId', isEqualTo: clienteId)
-        .snapshots()
+        .snapshots(includeMetadataChanges: true)
         .map((snapshot) {
       final list = snapshot.docs.map((doc) {
         return Abono.fromMap(doc.id, doc.data() as Map<String, dynamic>);
@@ -244,6 +537,7 @@ class FirebaseService {
     // 1. Registrar el Abono General
     final abonoRef = _abonosCollection.doc();
     final abono = Abono(
+      empresaId: empresaId,
       clienteId: clienteId,
       monto: montoAbono,
       fecha: Timestamp.now(),
@@ -254,6 +548,7 @@ class FirebaseService {
 
     // 2. Traer tickets con deuda y ordenarlos en memoria (ascendente: viejos primero)
     final snapshotTickets = await _ticketsCollection
+        .where('empresaId', isEqualTo: empresaId)
         .where('clienteId', isEqualTo: clienteId)
         .where('estado', isEqualTo: 'Con Deuda')
         .get();
@@ -328,6 +623,7 @@ class FirebaseService {
     // 1. Registrar el Abono
     final abonoRef = _abonosCollection.doc();
     final abono = Abono(
+      empresaId: empresaId,
       clienteId: clienteId,
       monto: montoAbono,
       fecha: Timestamp.now(),
@@ -400,6 +696,7 @@ class FirebaseService {
     if (saldoAnterior > 0) {
       final abonoRef = _abonosCollection.doc();
       final abono = Abono(
+        empresaId: empresaId,
         clienteId: ticket.clienteId,
         ticketId: ticket.id,
         repartidorId: ticket.repartidorId, // Guardar el repartidor que hizo el cobro
@@ -475,9 +772,10 @@ class FirebaseService {
   /// Trae todos los tickets en un rango de fechas
   Stream<List<Ticket>> getTicketsByDateRange(DateTime start, DateTime end) {
     return _ticketsCollection
+        .where('empresaId', isEqualTo: empresaId)
         .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where('fecha', isLessThanOrEqualTo: Timestamp.fromDate(end))
-        .snapshots()
+        .snapshots(includeMetadataChanges: true)
         .map((snapshot) {
       final list = snapshot.docs.map((doc) => Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
       list.sort((a, b) => (b.fecha ?? Timestamp.now()).compareTo(a.fecha ?? Timestamp.now()));
@@ -488,9 +786,10 @@ class FirebaseService {
   /// Trae todos los abonos en un rango de fechas
   Stream<List<Abono>> getAbonosByDateRange(DateTime start, DateTime end) {
     return _abonosCollection
+        .where('empresaId', isEqualTo: empresaId)
         .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where('fecha', isLessThanOrEqualTo: Timestamp.fromDate(end))
-        .snapshots()
+        .snapshots(includeMetadataChanges: true)
         .map((snapshot) {
       final list = snapshot.docs.map((doc) => Abono.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
       list.sort((a, b) => (b.fecha ?? Timestamp.now()).compareTo(a.fecha ?? Timestamp.now()));
@@ -503,6 +802,7 @@ class FirebaseService {
   // =========================================================================
 
   Future<String> addPersonal(Personal personal) async {
+    personal.empresaId = empresaId;
     personal.createAt = Timestamp.now();
     final docRef = _personalCollection.doc();
     personal.id = docRef.id;
@@ -518,7 +818,9 @@ class FirebaseService {
   }
 
   Stream<List<Personal>> getPersonalStream() {
-    return _personalCollection.snapshots().map((snapshot) {
+    return _personalCollection
+        .where('empresaId', isEqualTo: empresaId)
+        .snapshots().map((snapshot) {
       final list = snapshot.docs.map((doc) {
         return Personal.fromMap(doc.id, doc.data() as Map<String, dynamic>);
       }).toList();
@@ -599,6 +901,7 @@ class FirebaseService {
   /// Consultar los tickets que un repartidor ha entregado en un rango de fechas
   Stream<List<Ticket>> getTicketsEntregadosByRepartidor(String repartidorId, DateTime start, DateTime end) {
     return _ticketsCollection
+        .where('empresaId', isEqualTo: empresaId)
         .where('repartidorId', isEqualTo: repartidorId)
         .where('estadoEntrega', isEqualTo: 'Entregado')
         .where('updateAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
@@ -612,6 +915,7 @@ class FirebaseService {
   /// Consultar los abonos (efectivo cobrado) por un repartidor en un rango de fechas
   Stream<List<Abono>> getAbonosByRepartidor(String repartidorId, DateTime start, DateTime end) {
     return _abonosCollection
+        .where('empresaId', isEqualTo: empresaId)
         .where('repartidorId', isEqualTo: repartidorId)
         .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where('fecha', isLessThanOrEqualTo: Timestamp.fromDate(end))

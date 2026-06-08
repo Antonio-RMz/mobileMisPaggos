@@ -8,21 +8,38 @@ import '../models/ticket_model.dart';
 import '../models/personal_model.dart';
 import '../services/firebase_service.dart';
 import '../providers/cart_provider.dart';
+import '../providers/user_provider.dart';
 import '../theme/app_theme.dart';
 import 'payment_success_screen.dart';
 
-class PosScreen extends StatefulWidget {
+class NuevoPedidoScreen extends StatefulWidget {
   final Cliente? cliente;
-  const PosScreen({super.key, this.cliente});
+  const NuevoPedidoScreen({super.key, this.cliente});
 
   @override
-  State<PosScreen> createState() => _PosScreenState();
+  State<NuevoPedidoScreen> createState() => _NuevoPedidoScreenState();
 }
 
-class _PosScreenState extends State<PosScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
+  FirebaseService get _firebaseService => Provider.of<FirebaseService>(context, listen: false);
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   String _searchQuery = '';
+  late Stream<List<Producto>> _productosStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _productosStream = _firebaseService.getProductosStream();
+  }
+
+  String _removeAccents(String str) {
+    var withDia = 'áéíóúÁÉÍÓÚñÑ';
+    var withoutDia = 'aeiouAEIOUnN';
+    for (int i = 0; i < withDia.length; i++) {
+      str = str.replaceAll(withDia[i], withoutDia[i]);
+    }
+    return str;
+  }
 
   Cliente get _currentCliente => widget.cliente ?? Cliente(
     id: '',
@@ -344,16 +361,13 @@ class _PosScreenState extends State<PosScreen> {
   void _mostrarDialogoCobro(BuildContext context, CartProvider cart) {
     if (cart.items.isEmpty) return;
 
-    final itemsTienda = cart.items.where((i) => !i.isDomicilio).toList();
-    final itemsDomicilio = cart.items.where((i) => i.isDomicilio).toList();
-    
-    final double totalTienda = itemsTienda.fold(0.0, (sum, item) => sum + item.subtotal);
-    final double totalDomicilio = itemsDomicilio.fold(0.0, (sum, item) => sum + item.subtotal);
+    final double totalVenta = cart.totalCart;
 
-    final TextEditingController abonoCtrl = TextEditingController();
-    bool todoACredito = false;
     String? repartidorId;
     String? repartidorNombre;
+    final String clienteNombreFinal = _currentCliente.id != '' 
+        ? '${_currentCliente.nombre} ${_currentCliente.apPaterno}'.trim() 
+        : 'Público en General';
 
     showModalBottomSheet(
       context: context,
@@ -365,8 +379,6 @@ class _PosScreenState extends State<PosScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-            final double abonoIngresado = double.tryParse(abonoCtrl.text) ?? 0.0;
-            final double restanteTienda = totalTienda - abonoIngresado;
 
             return Padding(
               padding: EdgeInsets.only(
@@ -377,199 +389,175 @@ class _PosScreenState extends State<PosScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text('Procesar Venta', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                  const Text('Confirmar Pedido', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
                   const SizedBox(height: 16),
                   
                   // Resumen
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(color: AppTheme.backgroundLight, borderRadius: BorderRadius.circular(12)),
-                    child: Column(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween, 
                       children: [
-                        if (itemsTienda.isNotEmpty)
-                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                            const Text('Total Tienda:', style: TextStyle(fontSize: 16, color: AppTheme.success, fontWeight: FontWeight.bold)),
-                            Text(_currencyFormat.format(totalTienda), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.success)),
-                          ]),
-                        if (itemsTienda.isNotEmpty && itemsDomicilio.isNotEmpty) const Divider(),
-                        if (itemsDomicilio.isNotEmpty)
-                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                            const Text('Total Domicilio (Crédito):', style: TextStyle(fontSize: 16, color: Colors.orange, fontWeight: FontWeight.bold)),
-                            Text(_currencyFormat.format(totalDomicilio), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
-                          ]),
-                        const Divider(),
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                          const Text('Gran Total:', style: TextStyle(fontSize: 16)),
-                          Text(_currencyFormat.format(totalTienda + totalDomicilio), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.accent)),
-                        ]),
+                        const Text('Total a Cobrar:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(_currencyFormat.format(totalVenta), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.accent)),
+                      ]
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Resumen de Orden
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.primary.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.person, color: AppTheme.primary, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text('Cliente: $clienteNombreFinal', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Icon(Icons.shopping_basket, color: AppTheme.primary, size: 20),
+                            const SizedBox(width: 8),
+                            Text('${cart.items.length} producto(s) en el pedido:', style: const TextStyle(color: AppTheme.textDark)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Listado de productos
+                        ...cart.items.map((item) {
+                          final bool usaFracciones = item.producto.unidadVenta != 'pieza' && item.producto.unidadVenta != 'paquete';
+                          final String qtyText = usaFracciones ? '${item.cantidad.toStringAsFixed(2)} ${item.producto.unidadVenta}' : '${item.cantidad.toInt()}x';
+                          
+                          String displayStr = '• $qtyText ${item.producto.nombre} - ${_currencyFormat.format(item.subtotal)}';
+                          if (item.observaciones.isNotEmpty) {
+                             displayStr += '\n    * ${item.observaciones}';
+                          }
+
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 28, bottom: 6),
+                            child: Text(displayStr, style: const TextStyle(fontSize: 13, color: AppTheme.textDark)),
+                          );
+                        }).toList(),
                       ],
                     ),
                   ),
                   const SizedBox(height: 20),
 
-                  if (itemsDomicilio.isNotEmpty) ...[
-                    StreamBuilder<List<Personal>>(
-                      stream: _firebaseService.getPersonalStream(),
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                        final repartidores = snapshot.data!.where((p) => p.rol == 'Repartidor' && p.activo).toList();
-                        
-                        return DropdownButtonFormField<String>(
-                          value: repartidorId,
-                          decoration: InputDecoration(
-                            labelText: 'Asignar Repartidor (Domicilio)',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                            prefixIcon: const Icon(Icons.two_wheeler, color: Colors.orange),
-                          ),
-                          hint: const Text('Seleccionar repartidor...'),
-                          items: repartidores.map((r) {
-                            return DropdownMenuItem(value: r.id, child: Text(r.nombre));
-                          }).toList(),
-                          onChanged: (val) {
-                            setModalState(() {
-                              repartidorId = val;
-                              repartidorNombre = repartidores.firstWhere((r) => r.id == val).nombre;
-                            });
-                          },
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
-                  if (itemsTienda.isNotEmpty) ...[
-                    CheckboxListTile(
-                      title: const Text('Pago Tienda a Crédito (Sin Abono)'),
-                      value: todoACredito,
-                      activeColor: AppTheme.primary,
-                      onChanged: (val) {
-                        setModalState(() {
-                          todoACredito = val ?? false;
-                          if (todoACredito) abonoCtrl.clear();
-                        });
-                      },
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-
-                    if (!todoACredito) ...[
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: abonoCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        onChanged: (v) => setModalState(() {}),
-                        decoration: InputDecoration(
-                          labelText: 'Monto a Abonar (Tienda)',
-                          prefixIcon: const Icon(Icons.attach_money),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          suffixIcon: TextButton(
-                            onPressed: () {
-                              setModalState(() {
-                                abonoCtrl.text = totalTienda.toStringAsFixed(2);
-                              });
-                            },
-                            child: const Text('Liquidar', style: TextStyle(fontWeight: FontWeight.bold)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      if (abonoIngresado > 0)
-                        Text(
-                          restanteTienda > 0 
-                            ? 'Saldo Restante Tienda: ${_currencyFormat.format(restanteTienda)}' 
-                            : 'Tienda liquidada por completo.',
-                          style: TextStyle(
-                            color: restanteTienda > 0 ? Colors.orange[800] : Colors.green[700],
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                    ],
-                  ],
-
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                    onPressed: () async {
-                      final double abonoFinal = todoACredito ? 0.0 : (double.tryParse(abonoCtrl.text) ?? 0.0);
+                  StreamBuilder<List<Personal>>(
+                    stream: _firebaseService.getPersonalStream(),
+                    builder: (context, snapshot) {
+                      List<Personal> repartidores = [];
                       
-                      if (itemsTienda.isNotEmpty && abonoFinal > totalTienda) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El abono no puede superar el total de tienda')));
-                        return;
+                      if (snapshot.hasData) {
+                        repartidores = snapshot.data!.where((p) => p.rol == 'Repartidor' && p.activo).toList();
                       }
 
-                      if (itemsDomicilio.isNotEmpty && repartidorId == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor asigna un repartidor para la entrega a domicilio.')));
+                      repartidores.insert(0, Personal(
+                        id: 'SUCURSAL',
+                        nombre: 'Sucursal (Venta en tienda)',
+                        telefono: '',
+                        rol: 'Repartidor',
+                        activo: true,
+                        createAt: Timestamp.now(),
+                      ));
+
+                      if (repartidores.isEmpty) {
+                        // Si no hay datos o estamos offline sin caché, proveemos un repartidor de rescate
+                        repartidores.add(Personal(
+                          id: 'REP_TEMP_OFFLINE',
+                          nombre: 'Repartidor Temporal (Offline)',
+                          telefono: '',
+                          rol: 'Repartidor',
+                          activo: true,
+                          createAt: Timestamp.now(),
+                        ));
+                      }
+                      
+                      return DropdownButtonFormField<String>(
+                        value: repartidorId,
+                        decoration: InputDecoration(
+                          labelText: 'Asignar Repartidor',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          prefixIcon: const Icon(Icons.two_wheeler, color: Colors.orange),
+                        ),
+                        hint: const Text('Seleccionar repartidor...'),
+                        items: repartidores.map((r) {
+                          return DropdownMenuItem(value: r.id, child: Text(r.nombre));
+                        }).toList(),
+                        onChanged: (val) {
+                          setModalState(() {
+                            repartidorId = val;
+                            repartidorNombre = repartidores.firstWhere((r) => r.id == val).nombre;
+                          });
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 30),
+
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: AppTheme.accent,
+                    ),
+                    onPressed: () async {
+                      if (repartidorId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor asigna un repartidor.')));
                         return;
                       }
 
                       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
 
                       try {
-                        Ticket? ticketTienda;
-                        Ticket? ticketDomicilio;
-
-                        if (itemsTienda.isNotEmpty) {
-                          ticketTienda = Ticket(
-                            clienteId: _currentCliente.id,
-                            clienteNombre: '${_currentCliente.nombre} ${_currentCliente.apPaterno}',
-                            tipoEntrega: 'Local',
-                            estadoEntrega: 'Entregado',
-                            productos: itemsTienda.map((i) {
-                              return TicketItem(
-                                productoId: i.producto.id,
-                                codigo: i.producto.codigo,
-                                nombre: i.producto.nombre,
-                                cantidad: i.cantidad,
-                                precioUnitario: i.precioUnitario,
-                                observaciones: i.observaciones,
-                                unidadVenta: i.producto.unidadVenta,
-                              );
-                            }).toList(),
-                            totalVenta: totalTienda,
-                            totalAbonado: abonoFinal,
-                            estado: (totalTienda - abonoFinal) <= 0 ? 'Pagado' : 'Con Deuda',
-                          );
-                          await _firebaseService.procesarVenta(ticketTienda);
-                        }
-
-                        if (itemsDomicilio.isNotEmpty) {
-                          ticketDomicilio = Ticket(
-                            clienteId: _currentCliente.id,
-                            clienteNombre: '${_currentCliente.nombre} ${_currentCliente.apPaterno}',
-                            tipoEntrega: 'Domicilio',
-                            repartidorId: repartidorId,
-                            repartidorNombre: repartidorNombre,
-                            estadoEntrega: 'Pendiente',
-                            productos: itemsDomicilio.map((i) {
-                              return TicketItem(
-                                productoId: i.producto.id,
-                                codigo: i.producto.codigo,
-                                nombre: i.producto.nombre,
-                                cantidad: i.cantidad,
-                                precioUnitario: i.precioUnitario,
-                                observaciones: i.observaciones,
-                                unidadVenta: i.producto.unidadVenta,
-                              );
-                            }).toList(),
-                            totalVenta: totalDomicilio,
-                            totalAbonado: 0.0, // Domicilio siempre es crédito hasta que el repartidor cobre
-                            estado: 'Con Deuda',
-                          );
-                          await _firebaseService.procesarVenta(ticketDomicilio);
-                        }
+                        final userName = Provider.of<UserProvider>(context, listen: false).nombre;
+                        
+                        final ticket = Ticket(
+                          clienteId: _currentCliente.id != '' ? _currentCliente.id : 'GNR001',
+                          clienteNombre: clienteNombreFinal,
+                          tipoEntrega: repartidorId == 'SUCURSAL' ? 'Local' : 'Domicilio',
+                          repartidorId: repartidorId,
+                          repartidorNombre: repartidorNombre,
+                          estadoEntrega: repartidorId == 'SUCURSAL' ? 'Entregado' : 'Pendiente',
+                          productos: cart.items.map((i) {
+                            return TicketItem(
+                              productoId: i.producto.id,
+                              codigo: i.producto.codigo,
+                              nombre: i.producto.nombre,
+                              cantidad: i.cantidad,
+                              precioUnitario: i.precioUnitario,
+                              observaciones: i.observaciones,
+                              unidadVenta: i.producto.unidadVenta,
+                            );
+                          }).toList(),
+                          totalVenta: totalVenta,
+                          totalAbonado: 0.0,
+                          estado: 'Con Deuda',
+                          createBy: userName,
+                        );
+                        
+                        await _firebaseService.procesarVenta(ticket);
 
                         if (mounted) {
                           Navigator.pop(context); // Cierra loading
                           Navigator.pop(context); // Cierra modal
                           cart.clearCart();
                           
-                          // Ir a la pantalla de éxito pasando el ticket que tenga pago o el principal
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
                               builder: (context) => PaymentSuccessScreen(
-                                ticket: ticketTienda ?? ticketDomicilio!,
-                                abonado: abonoFinal,
+                                ticket: ticket,
+                                abonado: 0.0,
                               ),
                             ),
                           );
@@ -583,7 +571,7 @@ class _PosScreenState extends State<PosScreen> {
                         }
                       }
                     },
-                    child: const Text('Confirmar Venta', style: TextStyle(fontSize: 16)),
+                    child: const Text('Confirmar Pedido', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -664,25 +652,7 @@ class _PosScreenState extends State<PosScreen> {
                                         Text(item.observaciones, style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 12, color: Colors.grey)),
                                       ],
                                       const SizedBox(height: 4),
-                                      StatefulBuilder(
-                                        builder: (context, setStateItem) {
-                                          return Row(
-                                            children: [
-                                              Icon(item.isDomicilio ? Icons.two_wheeler : Icons.storefront, size: 16, color: item.isDomicilio ? Colors.orange : AppTheme.success),
-                                              const SizedBox(width: 4),
-                                              Text(item.isDomicilio ? 'Envío' : 'Tienda', style: TextStyle(fontSize: 12, color: item.isDomicilio ? Colors.orange : AppTheme.success, fontWeight: FontWeight.bold)),
-                                              Switch(
-                                                value: item.isDomicilio,
-                                                activeColor: Colors.orange,
-                                                onChanged: (val) {
-                                                  cart.toggleDomicilio(item.id, val);
-                                                  setStateItem(() {});
-                                                },
-                                              ),
-                                            ],
-                                          );
-                                        }
-                                      ),
+
                                     ],
                                   ),
                                 ),
@@ -776,8 +746,8 @@ class _PosScreenState extends State<PosScreen> {
                           Navigator.pop(context);
                           _mostrarDialogoCobro(context, cart);
                         },
-                        icon: const Icon(Icons.payments_outlined, color: Colors.white),
-                        label: const Text('Cobrar', style: TextStyle(fontSize: 16, color: Colors.white)),
+                        icon: const Icon(Icons.arrow_forward, color: Colors.white),
+                        label: const Text('Continuar', style: TextStyle(fontSize: 16, color: Colors.white)),
                       ),
                     ],
                   ),
@@ -805,21 +775,19 @@ class _PosScreenState extends State<PosScreen> {
     }
   }
 
-  Widget _buildProductList(CartProvider cart, BuildContext context, {required bool isCarniceria}) {
-    return StreamBuilder<List<Producto>>(
-      stream: _firebaseService.getProductosStream(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        
-        var productos = snapshot.data!;
+  Widget _buildProductList(CartProvider cart, BuildContext context, List<Producto> allProductos, {required bool isCarniceria}) {
+        var productos = List<Producto>.from(allProductos);
         
         // Filtro por sección
         productos = productos.where((p) => isCarniceria ? p.seccion == 'carniceria' : p.seccion != 'carniceria').toList();
 
         if (_searchQuery.isNotEmpty) {
-          productos = productos.where((p) => p.nombre.toLowerCase().contains(_searchQuery) || p.codigo.toLowerCase().contains(_searchQuery)).toList();
+          final queryNorm = _removeAccents(_searchQuery.toLowerCase().trim());
+          productos = productos.where((p) {
+            final nombreNorm = _removeAccents(p.nombre.toLowerCase());
+            final codigoNorm = _removeAccents(p.codigo.toLowerCase());
+            return nombreNorm.contains(queryNorm) || codigoNorm.contains(queryNorm);
+          }).toList();
         } else {
           productos.sort((a, b) => a.nombre.compareTo(b.nombre));
         }
@@ -948,8 +916,6 @@ class _PosScreenState extends State<PosScreen> {
             );
           },
         );
-      },
-    );
   }
 
   @override
@@ -1035,8 +1001,8 @@ class _PosScreenState extends State<PosScreen> {
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Nueva Venta', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-                Text('${_currentCliente.nombre} ${_currentCliente.apPaterno}', style: const TextStyle(fontSize: 13, color: AppTheme.textLight)),
+                const Text('Nuevo Pedido', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                Text(_currentCliente.id != '' ? '${_currentCliente.nombre} ${_currentCliente.apPaterno}' : 'Público en General', style: const TextStyle(fontSize: 13, color: AppTheme.textLight)),
               ],
             ),
             bottom: const TabBar(
@@ -1078,11 +1044,20 @@ class _PosScreenState extends State<PosScreen> {
               
               // Catálogo de Productos
               Expanded(
-                child: TabBarView(
-                  children: [
-                    _buildProductList(cart, context, isCarniceria: false),
-                    _buildProductList(cart, context, isCarniceria: true),
-                  ],
+                child: StreamBuilder<List<Producto>>(
+                  stream: _productosStream,
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final productos = snapshot.data!;
+                    return TabBarView(
+                      children: [
+                        _buildProductList(cart, context, productos, isCarniceria: false),
+                        _buildProductList(cart, context, productos, isCarniceria: true),
+                      ],
+                    );
+                  }
                 ),
               ),
             ],

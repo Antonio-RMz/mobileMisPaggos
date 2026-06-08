@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Paleta Stripe / Linear (B2B Premium)
-  static const Color slateBlue = Color(0xFF0F172A); // Azul oscuro casi negro para fondos fuertes y textos
-  static const Color turquoise = Color(0xFF2DD4BF); // Turquesa suave como accent color
-  static const Color backgroundLight = Color(0xFFF1F5F9); // Fondo gris claro (slate-100) para dar contraste
-  static const Color cardHighlight = Color(0xFFF1F5F9); // Fondo sutil para tags
+  // Paleta adaptada para mayor contraste y legibilidad
+  static const Color slateBlue = Color(0xFF0F172A); // Azul oscuro
+  static const Color turquoise = Color(0xFF0D9488); // Turquesa más oscuro para mejor contraste
+  static const Color backgroundLight = Color(0xFFF1F5F9); 
+  static const Color cardHighlight = Color(0xFFE2E8F0); 
   static const Color whiteColor = Colors.white;
   
   static const Color textDark = Color(0xFF0F172A);
-  static const Color textLight = Color(0xFF64748B);
+  static const Color textLight = Color(0xFF334155); // Gris mucho más oscuro para legibilidad
 
   static const Color primary = slateBlue;
   static const Color accent = turquoise;
   static const Color background = backgroundLight;
-  static const Color success = Color(0xFF10B981);
-  static const Color error = Color(0xFFEF4444);
+  static const Color success = Color(0xFF059669); // Verde más oscuro
+  static const Color error = Color(0xFFDC2626); // Rojo más oscuro
 
   static ThemeData get lightTheme {
     return ThemeData(
@@ -26,17 +26,17 @@ class AppTheme {
         secondary: turquoise,
         surface: whiteColor,
       ),
-      fontFamily: 'Inter', // Linear/Stripe style font
+      fontFamily: 'Inter',
 
       appBarTheme: const AppBarTheme(
         backgroundColor: whiteColor,
         elevation: 0,
         centerTitle: true,
-        iconTheme: IconThemeData(color: textDark),
+        iconTheme: IconThemeData(color: textDark, size: 28), // Iconos más grandes
         titleTextStyle: TextStyle(
           color: textDark,
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
+          fontSize: 22, // Título más grande
+          fontWeight: FontWeight.w800,
           letterSpacing: -0.5,
         ),
       ),
@@ -45,47 +45,48 @@ class AppTheme {
         backgroundColor: slateBlue,
         foregroundColor: whiteColor,
         elevation: 4,
+        iconSize: 28, // Icono más grande
       ),
 
       cardTheme: CardTheme(
         color: whiteColor,
-        elevation: 4,
-        shadowColor: Colors.black.withOpacity(0.2),
+        elevation: 3,
+        shadowColor: Colors.black.withOpacity(0.15),
         surfaceTintColor: Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.grey.withOpacity(0.3), width: 1),
+          borderRadius: BorderRadius.circular(16), // Bordes más suaves
+          side: BorderSide(color: Colors.grey.withOpacity(0.4), width: 1), // Borde más visible
         ),
-        margin: const EdgeInsets.only(bottom: 16),
+        margin: const EdgeInsets.only(bottom: 20),
       ),
 
       textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: textDark),
-        bodyMedium: TextStyle(color: textDark),
-        titleLarge: TextStyle(color: textDark, fontWeight: FontWeight.bold),
-        titleMedium: TextStyle(color: textDark, fontWeight: FontWeight.w700),
+        bodyLarge: TextStyle(color: textDark, fontSize: 18), // Aumentado
+        bodyMedium: TextStyle(color: textDark, fontSize: 16), // Aumentado
+        titleLarge: TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 24), // Aumentado
+        titleMedium: TextStyle(color: textDark, fontWeight: FontWeight.w800, fontSize: 18), // Aumentado
       ),
 
       inputDecorationTheme: InputDecorationTheme(
         fillColor: whiteColor,
         filled: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        labelStyle: const TextStyle(color: textLight),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18), // Más espacio
+        labelStyle: const TextStyle(color: textLight, fontSize: 16, fontWeight: FontWeight.w600), // Label más legible
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 2), // Bordes más gruesos
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: turquoise, width: 2),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: turquoise, width: 3), // Focus muy evidente
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: error, width: 1),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: error, width: 2),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: error, width: 2),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: error, width: 3),
         ),
       ),
 
@@ -93,17 +94,21 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: slateBlue,
           foregroundColor: whiteColor,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          elevation: 2,
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24), // Botones grandes
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
           ),
           textStyle: const TextStyle(
-            fontSize: 15, 
-            fontWeight: FontWeight.w600, 
-            letterSpacing: -0.2,
+            fontSize: 18, // Texto de botón grande
+            fontWeight: FontWeight.bold, 
+            letterSpacing: 0,
           ),
         ),
+      ),
+      
+      iconTheme: const IconThemeData(
+        size: 28, // Iconos base más grandes
       ),
 
       datePickerTheme: DatePickerThemeData(
@@ -111,7 +116,7 @@ class AppTheme {
         headerBackgroundColor: slateBlue,
         headerForegroundColor: whiteColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        dayStyle: const TextStyle(fontWeight: FontWeight.w500),
+        dayStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
         todayBackgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return turquoise;
           return Colors.transparent;

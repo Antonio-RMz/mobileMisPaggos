@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/personal_model.dart';
 import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
@@ -13,7 +14,7 @@ class PersonalListScreen extends StatefulWidget {
 }
 
 class _PersonalListScreenState extends State<PersonalListScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  FirebaseService get _firebaseService => Provider.of<FirebaseService>(context, listen: false);
   String _filtroRol = 'Todos';
 
   void _mostrarFormulario([Personal? personal]) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/producto_model.dart';
 import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
@@ -14,7 +15,7 @@ class CarniceriaFormModal extends StatefulWidget {
 
 class _CarniceriaFormModalState extends State<CarniceriaFormModal> {
   final _formKey = GlobalKey<FormState>();
-  final FirebaseService _firebaseService = FirebaseService();
+  FirebaseService get _firebaseService => Provider.of<FirebaseService>(context, listen: false);
 
   final TextEditingController _nombreCtrl = TextEditingController();
   final TextEditingController _codigoCtrl = TextEditingController(); // Nuevo campo
@@ -48,6 +49,17 @@ class _CarniceriaFormModalState extends State<CarniceriaFormModal> {
         _categorias.add(widget.producto!.categoria);
         _selectedCategoria = widget.producto!.categoria;
       }
+    } else {
+      _cargarSiguienteCodigo();
+    }
+  }
+
+  Future<void> _cargarSiguienteCodigo() async {
+    final codigo = await _firebaseService.getSiguienteCodigoCarniceria();
+    if (mounted && widget.producto == null) {
+      setState(() {
+        _codigoCtrl.text = codigo;
+      });
     }
   }
 
@@ -294,11 +306,12 @@ class _CarniceriaFormModalState extends State<CarniceriaFormModal> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLabel('Código Interno (Opcional)'),
+                      _buildLabel('Código Interno (Generado automáticamente)'),
                       _buildTextField(
                         controller: _codigoCtrl,
-                        hintText: 'Ej. CAR-01',
+                        hintText: 'Generando...',
                         icon: Icons.tag,
+                        readOnly: true,
                       ),
                     ],
                   ),
@@ -368,9 +381,11 @@ class _CarniceriaFormModalState extends State<CarniceriaFormModal> {
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
     bool isRequired = false,
+    bool readOnly = false,
   }) {
     return TextFormField(
       controller: controller,
+      readOnly: readOnly,
       keyboardType: keyboardType,
       style: const TextStyle(color: AppTheme.textDark, fontSize: 14),
       decoration: InputDecoration(

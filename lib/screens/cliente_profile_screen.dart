@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/cliente_model.dart';
 import '../models/ticket_model.dart';
@@ -7,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../services/pdf_service.dart';
 import '../utils/overlay_helper.dart';
 import 'general_success_screen.dart';
+import 'nuevo_pedido_screen.dart';
 
 class ClienteProfileScreen extends StatefulWidget {
   final Cliente cliente;
@@ -17,7 +19,7 @@ class ClienteProfileScreen extends StatefulWidget {
 }
 
 class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  FirebaseService get _firebaseService => Provider.of<FirebaseService>(context, listen: false);
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
 
   // _abrirWhatsApp se movió a GeneralSuccessScreen
@@ -605,6 +607,20 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
             ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => NuevoPedidoScreen(cliente: widget.cliente),
+            ),
+          );
+        },
+        icon: const Icon(Icons.add_shopping_cart),
+        label: const Text('Nueva Venta', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: AppTheme.accent,
+        foregroundColor: Colors.white,
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Personal {
   String id;
+  String empresaId;
   String nombre;
   String telefono;
   String rol; // 'Empleado' o 'Repartidor'
@@ -11,6 +12,7 @@ class Personal {
 
   Personal({
     this.id = '',
+    this.empresaId = '',
     required this.nombre,
     required this.telefono,
     required this.rol,
@@ -22,6 +24,7 @@ class Personal {
   factory Personal.fromMap(String id, Map<String, dynamic> data) {
     return Personal(
       id: id,
+      empresaId: data['empresaId'] ?? '',
       nombre: data['nombre'] ?? '',
       telefono: data['telefono'] ?? '',
       rol: data['rol'] ?? 'Empleado',
@@ -33,6 +36,7 @@ class Personal {
 
   Map<String, dynamic> toMap() {
     return {
+      'empresaId': empresaId,
       'nombre': nombre,
       'telefono': telefono,
       'rol': rol,

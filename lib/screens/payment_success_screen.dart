@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
 import '../models/ticket_model.dart';
 import '../theme/app_theme.dart';
 import '../services/pdf_service.dart';
+import '../providers/printer_provider.dart';
 
 class PaymentSuccessScreen extends StatefulWidget {
   final Ticket ticket;
@@ -93,7 +95,9 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> with Single
             ),
             const SizedBox(height: 32),
             Text(
-              isTotal ? '¡Pago Exitoso!' : '¡Abono Registrado!',
+              widget.ticket.tipoEntrega == 'Domicilio' 
+                  ? '¡Pedido Confirmado!' 
+                  : (isTotal ? '¡Pago Exitoso!' : '¡Abono Registrado!'),
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -101,15 +105,17 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> with Single
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              _currencyFormat.format(widget.abonado),
-              style: const TextStyle(
-                fontSize: 48,
-                fontWeight: FontWeight.w900,
-                color: AppTheme.accent,
+            if (widget.ticket.tipoEntrega != 'Domicilio' || widget.abonado > 0) ...[
+              Text(
+                _currencyFormat.format(widget.abonado),
+                style: const TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.accent,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
+              const SizedBox(height: 8),
+            ],
             Text(
               'a ${widget.ticket.clienteNombre}',
               style: const TextStyle(
@@ -136,26 +142,28 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> with Single
                       Text(_currencyFormat.format(widget.ticket.totalVenta), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
-                  const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Abonado:', style: TextStyle(color: Colors.black54, fontSize: 16)),
-                      Text(_currencyFormat.format(widget.abonado), style: const TextStyle(color: AppTheme.success, fontWeight: FontWeight.bold, fontSize: 16)),
-                    ],
-                  ),
-                  if (!isTotal) ...[
+                  if (widget.ticket.tipoEntrega != 'Domicilio' || widget.abonado > 0) ...[
                     const Divider(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Saldo Restante:', style: TextStyle(color: Colors.black54, fontSize: 16)),
-                        Text(
-                          _currencyFormat.format(widget.ticket.totalVenta - widget.ticket.totalAbonado),
-                          style: const TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
+                        const Text('Abonado:', style: TextStyle(color: Colors.black54, fontSize: 16)),
+                        Text(_currencyFormat.format(widget.abonado), style: const TextStyle(color: AppTheme.success, fontWeight: FontWeight.bold, fontSize: 16)),
                       ],
                     ),
+                    if (!isTotal) ...[
+                      const Divider(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Saldo Restante:', style: TextStyle(color: Colors.black54, fontSize: 16)),
+                          Text(
+                            _currencyFormat.format(widget.ticket.totalVenta - widget.ticket.totalAbonado),
+                            style: const TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ]
                   ]
                 ],
               ),
@@ -183,17 +191,39 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> with Single
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppTheme.textDark,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      onPressed: () async {
-                        await PdfService.imprimirTicket(widget.ticket, abonoReciente: widget.abonado);
+                    child: Consumer<PrinterProvider>(
+                      builder: (context, printerProvider, child) {
+                        bool isConnected = printerProvider.isConnected;
+                        return ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isConnected ? Colors.blueAccent : Colors.white,
+                            foregroundColor: isConnected ? Colors.white : AppTheme.textDark,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          onPressed: () async {
+                            if (isConnected) {
+                              try {
+                                await printerProvider.printDeliveryTicket(widget.ticket);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Impresión enviada correctamente'), backgroundColor: Colors.green),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error al imprimir: $e'), backgroundColor: Colors.red),
+                                  );
+                                }
+                              }
+                            } else {
+                              await PdfService.imprimirTicket(widget.ticket, abonoReciente: widget.abonado);
+                            }
+                          },
+                          icon: Icon(Icons.print, color: isConnected ? Colors.white : Colors.blueAccent),
+                          label: Text(isConnected ? 'Imprimir Ticket (Bluetooth)' : 'Generar Ticket PDF'),
+                        );
                       },
-                      icon: const Icon(Icons.print, color: Colors.blueAccent),
-                      label: const Text('Imprimir / Ver Ticket PDF'),
                     ),
                   ),
                   const SizedBox(height: 16),

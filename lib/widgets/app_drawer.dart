@@ -7,10 +7,14 @@ import '../providers/user_provider.dart';
 import '../screens/main_screen.dart';
 import '../screens/support_screen.dart';
 import '../screens/user_profile_screen.dart';
-import '../providers/auth_provider.dart';
+import '../screens/user_profile_screen.dart';
 import '../screens/personal_list_screen.dart';
-import '../screens/pos_screen.dart';
+
 import '../screens/ventas_list_screen.dart';
+import '../screens/printer_settings_screen.dart';
+import '../providers/printer_provider.dart';
+import '../screens/login_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -176,6 +180,36 @@ class AppDrawer extends StatelessWidget {
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Divider(color: Color(0xFFEEEEEE), thickness: 1),
                 ),
+                Consumer<PrinterProvider>(
+                  builder: (context, printerProvider, child) {
+                    return _buildDrawerItem(
+                      context: context,
+                      icon: Icons.print,
+                      title: 'Impresora Térmica',
+                      trailing: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: printerProvider.isConnected ? Colors.green : Colors.red,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (printerProvider.isConnected ? Colors.green : Colors.red).withOpacity(0.5),
+                              blurRadius: 4,
+                            )
+                          ]
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
+                        );
+                      },
+                    );
+                  }
+                ),
                 _buildDrawerItem(
                   context: context,
                   icon: LucideIcons.helpCircle,
@@ -192,42 +226,28 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
           
-          // Botón de Cerrar Sesión en la parte inferior
+          const SizedBox(height: 8),
           Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: InkWell(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildDrawerItem(
+              context: context,
+              icon: LucideIcons.logOut,
+              title: 'Cerrar Sesión',
               onTap: () async {
-                final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                await authProvider.logout();
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('is_logged_in', false);
+                
                 if (context.mounted) {
-                  Navigator.pop(context); // Cierra el Drawer
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+                  );
                 }
               },
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF0F0),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(LucideIcons.logOut, color: Colors.redAccent, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Cerrar Sesión',
-                      style: TextStyle(
-                        color: Colors.redAccent,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -238,15 +258,17 @@ class AppDrawer extends StatelessWidget {
     required IconData icon,
     required String title,
     bool isActive = false,
+    Widget? trailing,
     required VoidCallback onTap,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: isActive ? AppTheme.cardHighlight : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Icon(
           icon,
           color: isActive ? AppTheme.accent : AppTheme.textLight,
@@ -256,11 +278,12 @@ class AppDrawer extends StatelessWidget {
           title,
           style: TextStyle(
             color: isActive ? AppTheme.accent : AppTheme.textDark,
-            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-            fontSize: 14,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
+            fontSize: 15,
           ),
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        trailing: trailing,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         onTap: onTap,
       ),
     );

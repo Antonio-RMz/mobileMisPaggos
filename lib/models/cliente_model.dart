@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Define la estructura de los clientes en la colección 'clientes'.
 class Cliente {
   String id;
+  String empresaId;
   String nombre;
   String apPaterno;
   String apMaterno;
@@ -20,9 +21,11 @@ class Cliente {
   Timestamp? createAt;
   String updateBy;
   Timestamp? updateAt;
+  bool isDistinguido;
 
   Cliente({
     this.id = '',
+    this.empresaId = '',
     required this.nombre,
     required this.apPaterno,
     required this.apMaterno,
@@ -39,6 +42,7 @@ class Cliente {
     this.createAt,
     this.updateBy = 'Admin',
     this.updateAt,
+    this.isDistinguido = false,
   });
 
   String get nombreCompleto => '$nombre $apPaterno $apMaterno'.trim();
@@ -54,6 +58,7 @@ class Cliente {
   factory Cliente.fromMap(String id, Map<String, dynamic> data) {
     return Cliente(
       id: id,
+      empresaId: data['empresaId'] ?? '',
       nombre: data['nombre'] ?? '',
       apPaterno: data['appaterno'] ?? '', // Campos en minúscula según requerimiento
       apMaterno: data['apmaterno'] ?? '',
@@ -70,12 +75,14 @@ class Cliente {
       createAt: data['createAt'],
       updateBy: data['updateBy'] ?? '',
       updateAt: data['updateAt'],
+      isDistinguido: data['isDistinguido'] ?? false,
     );
   }
 
   /// Convierte la instancia de Cliente a un mapa para guardarlo en Firestore
   Map<String, dynamic> toMap() {
     return {
+      'empresaId': empresaId,
       'nombre': nombre,
       'appaterno': apPaterno,
       'apmaterno': apMaterno,
@@ -92,6 +99,7 @@ class Cliente {
       'createAt': createAt,
       'updateBy': updateBy,
       'updateAt': updateAt,
+      'isDistinguido': isDistinguido,
     };
   }
 }

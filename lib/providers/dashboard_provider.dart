@@ -72,8 +72,6 @@ class DashboardProvider with ChangeNotifier {
       final ticketsSnapshot = await _firestore
           .collection('tickets')
           .where('empresaId', isEqualTo: empresaId)
-          .where('fecha', isGreaterThanOrEqualTo: inicioMes)
-          .where('fecha', isLessThanOrEqualTo: finMes)
           .get();
 
       // Obtener todos los productos para saber su sección
@@ -100,6 +98,14 @@ class DashboardProvider with ChangeNotifier {
 
       for (var doc in ticketsSnapshot.docs) {
         final ticket = Ticket.fromMap(doc.id, doc.data());
+        
+        // Determinar si el ticket es del mes actual
+        final bool esDelMes = ticket.fecha != null && 
+            ticket.fecha!.toDate().isAfter(inicioMes.subtract(const Duration(seconds: 1))) && 
+            ticket.fecha!.toDate().isBefore(finMes.add(const Duration(seconds: 1)));
+
+        if (!esDelMes) continue;
+
         totalVentasMes += ticket.totalVenta;
 
         // Conteo de estado de entregas del mes o del día? El cliente pide estado actual.

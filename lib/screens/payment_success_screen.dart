@@ -46,18 +46,55 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> with Single
   Future<void> _compartirPorWhatsApp() async {
     final sb = StringBuffer();
     sb.writeln('✅ *¡Venta Exitosa!*');
+    
+    final productosCarniceria = widget.ticket.productos.where((p) => p.seccion == 'carniceria').toList();
+    final productosCatalogo = widget.ticket.productos.where((p) => p.seccion != 'carniceria').toList();
+    
+    final esSoloCarniceria = productosCarniceria.isNotEmpty && productosCatalogo.isEmpty;
+    final tieneRepartidor = widget.ticket.tipoEntrega == 'Domicilio' && widget.ticket.repartidorNombre != null;
+
     sb.writeln('Cliente: ${widget.ticket.clienteNombre}');
-    sb.writeln('Total: ${_currencyFormat.format(widget.ticket.totalVenta)}');
-    sb.writeln('Abonado: ${_currencyFormat.format(widget.abonado)}');
-    final restante = widget.ticket.totalVenta - widget.ticket.totalAbonado;
-    if (restante > 0) {
-      sb.writeln('Saldo Restante: ${_currencyFormat.format(restante)}');
+    
+    if (esSoloCarniceria && tieneRepartidor) {
+      sb.writeln('Repartidor: ${widget.ticket.repartidorNombre}');
+      sb.writeln('Total: ${_currencyFormat.format(widget.ticket.totalVenta)}');
+      
+      sb.writeln('\n*Productos:*');
+      for (var p in productosCarniceria) {
+        sb.writeln('- ${p.descripcionAmigable} (${_currencyFormat.format(p.precioUnitario)})');
+      }
+    } else {
+      if (tieneRepartidor) {
+        sb.writeln('Repartidor: ${widget.ticket.repartidorNombre}');
+      }
+      sb.writeln('Total: ${_currencyFormat.format(widget.ticket.totalVenta)}');
+      sb.writeln('Primer Abono: ${_currencyFormat.format(widget.abonado)}');
+      
+      final restante = widget.ticket.totalVenta - widget.ticket.totalAbonado;
+      if (restante > 0) {
+        sb.writeln('Saldo Restante: ${_currencyFormat.format(restante)}');
+        final fechaFormateada = widget.ticket.fecha != null 
+            ? DateFormat('dd/MM/yyyy').format(widget.ticket.fecha!.toDate())
+            : DateFormat('dd/MM/yyyy').format(DateTime.now());
+        sb.writeln('Fecha de pago: $fechaFormateada');
+      }
+
+      if (productosCarniceria.isNotEmpty) {
+        sb.writeln('\n*Productos Carnicería:*');
+        for (var p in productosCarniceria) {
+          sb.writeln('- ${p.descripcionAmigable} (${_currencyFormat.format(p.precioUnitario)})');
+        }
+      }
+      
+      if (productosCatalogo.isNotEmpty) {
+        sb.writeln('\n*Productos Catálogo:*');
+        for (var p in productosCatalogo) {
+          final codigoText = p.codigo.isNotEmpty ? '[${p.codigo}] ' : '';
+          sb.writeln('- $codigoText${p.descripcionAmigable} (${_currencyFormat.format(p.precioUnitario)})');
+        }
+      }
     }
-    sb.writeln('\n*Productos:*');
-    for (var p in widget.ticket.productos) {
-      final codigoText = p.codigo.isNotEmpty ? '[${p.codigo}] ' : '';
-      sb.writeln('- $codigoText${p.descripcionAmigable} (${_currencyFormat.format(p.precioUnitario)})');
-    }
+
     sb.writeln('\n¡Gracias por tu compra!');
 
     final url = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(sb.toString())}');

@@ -199,6 +199,44 @@ class FirebaseService {
     }
   }
 
+  Future<String> getSiguienteCodigoCatalogo() async {
+    try {
+      final snapshot = await _productosCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .where('seccion', isNotEqualTo: 'carniceria')
+          .get(const GetOptions(source: Source.serverAndCache));
+      
+      if (snapshot.docs.isEmpty) return 'C001';
+
+      String maxCode = 'C000';
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final String code = data['codigo'] ?? '';
+        if (code.length == 4 && RegExp(r'^[C-Z][0-9]{3}$').hasMatch(code)) {
+          if (code.compareTo(maxCode) > 0) {
+            maxCode = code;
+          }
+        }
+      }
+
+      if (maxCode == 'C000') return 'C001';
+
+      String letra = maxCode.substring(0, 1);
+      int numero = int.parse(maxCode.substring(1));
+
+      numero++;
+      if (numero > 999) {
+        letra = String.fromCharCode(letra.codeUnitAt(0) + 1);
+        numero = 1;
+      }
+
+      return '$letra${numero.toString().padLeft(3, '0')}';
+    } catch (e) {
+      print('Error generando código: $e');
+      return 'C001';
+    }
+  }
+
   // =========================================================================
   // VENTAS (POS) Y ABONOS
   // =========================================================================
@@ -773,11 +811,15 @@ class FirebaseService {
   Stream<List<Ticket>> getTicketsByDateRange(DateTime start, DateTime end) {
     return _ticketsCollection
         .where('empresaId', isEqualTo: empresaId)
-        .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('fecha', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .snapshots(includeMetadataChanges: true)
         .map((snapshot) {
-      final list = snapshot.docs.map((doc) => Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+      final list = snapshot.docs.map((doc) => Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+          .where((t) {
+            if (t.fecha == null) return false;
+            final date = t.fecha!.toDate();
+            return date.isAfter(start.subtract(const Duration(seconds: 1))) && date.isBefore(end.add(const Duration(seconds: 1)));
+          })
+          .toList();
       list.sort((a, b) => (b.fecha ?? Timestamp.now()).compareTo(a.fecha ?? Timestamp.now()));
       return list;
     });
@@ -787,11 +829,15 @@ class FirebaseService {
   Stream<List<Abono>> getAbonosByDateRange(DateTime start, DateTime end) {
     return _abonosCollection
         .where('empresaId', isEqualTo: empresaId)
-        .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('fecha', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .snapshots(includeMetadataChanges: true)
         .map((snapshot) {
-      final list = snapshot.docs.map((doc) => Abono.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+      final list = snapshot.docs.map((doc) => Abono.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+          .where((a) {
+            if (a.fecha == null) return false;
+            final date = a.fecha!.toDate();
+            return date.isAfter(start.subtract(const Duration(seconds: 1))) && date.isBefore(end.add(const Duration(seconds: 1)));
+          })
+          .toList();
       list.sort((a, b) => (b.fecha ?? Timestamp.now()).compareTo(a.fecha ?? Timestamp.now()));
       return list;
     });
@@ -904,11 +950,15 @@ class FirebaseService {
         .where('empresaId', isEqualTo: empresaId)
         .where('repartidorId', isEqualTo: repartidorId)
         .where('estadoEntrega', isEqualTo: 'Entregado')
-        .where('updateAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('updateAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+      return snapshot.docs.map((doc) => Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+          .where((t) {
+            if (t.updateAt == null) return false;
+            final date = t.updateAt!.toDate();
+            return date.isAfter(start.subtract(const Duration(seconds: 1))) && date.isBefore(end.add(const Duration(seconds: 1)));
+          })
+          .toList();
     });
   }
 
@@ -917,11 +967,15 @@ class FirebaseService {
     return _abonosCollection
         .where('empresaId', isEqualTo: empresaId)
         .where('repartidorId', isEqualTo: repartidorId)
-        .where('fecha', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('fecha', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => Abono.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList();
+      return snapshot.docs.map((doc) => Abono.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+          .where((a) {
+            if (a.fecha == null) return false;
+            final date = a.fecha!.toDate();
+            return date.isAfter(start.subtract(const Duration(seconds: 1))) && date.isBefore(end.add(const Duration(seconds: 1)));
+          })
+          .toList();
     });
   }
 }

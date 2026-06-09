@@ -80,31 +80,10 @@ class _VentasListScreenState extends State<VentasListScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        title: const Text('Ventas', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+        title: const Text('Ventas'),
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppTheme.textDark),
-        actions: [
-          TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(LucideIcons.download, size: 18),
-            label: const Text('Descargar Ventas'),
-            style: TextButton.styleFrom(foregroundColor: AppTheme.textDark),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const NuevoPedidoScreen()));
-            },
-            icon: const Icon(LucideIcons.plus, size: 18, color: Colors.white),
-            label: const Text('Crear', style: TextStyle(color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.accent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-          const SizedBox(width: 16),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(130), // Altura ajustada para el buscador y fecha
           child: Container(
@@ -182,6 +161,14 @@ class _VentasListScreenState extends State<VentasListScreen> {
 
           return _buildList(allTickets);
         },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const NuevoPedidoScreen()));
+        },
+        icon: const Icon(LucideIcons.plus, color: Colors.white),
+        label: const Text('NUEVA VENTA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: AppTheme.accent,
       ),
     );
   }

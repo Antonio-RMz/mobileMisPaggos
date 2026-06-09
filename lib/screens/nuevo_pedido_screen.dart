@@ -82,14 +82,22 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             double inputVal = double.tryParse(inputCtrl.text) ?? 0.0;
+            double fractionVal = 0.0;
+            if (modoVenta.contains('1/4')) fractionVal = 0.25;
+            if (modoVenta.contains('1/2')) fractionVal = 0.5;
+            if (modoVenta.contains('3/4')) fractionVal = 0.75;
+
             double cantidadFinal = 0.0;
             double totalCalculado = 0.0;
 
-            if (modoVenta == 'Monto (\$)' && precioKilo > 0) {
+            if (modoVenta.startsWith('Monto')) {
               cantidadFinal = inputVal / precioKilo;
               totalCalculado = inputVal;
             } else if (modoVenta == 'Gramos') {
               cantidadFinal = inputVal / 1000;
+              totalCalculado = cantidadFinal * precioKilo;
+            } else if (modoVenta.startsWith('Unidad Base')) {
+              cantidadFinal = inputVal + fractionVal;
               totalCalculado = cantidadFinal * precioKilo;
             } else {
               cantidadFinal = inputVal;
@@ -103,13 +111,14 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: modoVenta,
+                      value: modoVenta.startsWith('Unidad Base') ? 'Unidad Base' : modoVenta,
                       decoration: const InputDecoration(labelText: 'Modo de Venta', border: OutlineInputBorder()),
                       items: [
                         DropdownMenuItem(value: 'Unidad Base', child: Text('Por ${producto.unidadVenta}')),
                         if (producto.unidadVenta == 'kg') ...[
                           const DropdownMenuItem(value: 'Monto (\$)', child: Text('Por Monto (\$)' )),
                           const DropdownMenuItem(value: 'Gramos', child: Text('Por Gramos')),
+                          const DropdownMenuItem(value: 'Piezas', child: Text('Por Piezas')),
                         ]
                       ],
                       onChanged: (val) {
@@ -122,16 +131,65 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    TextField(
-                      controller: inputCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      autofocus: true,
-                      onChanged: (v) => setStateDialog((){}),
-                      decoration: InputDecoration(
-                        labelText: modoVenta == 'Monto (\$)' ? 'Monto a Cobrar (\$)' : (modoVenta == 'Gramos' ? 'Gramos (g)' : 'Cantidad (${producto.unidadVenta})'),
-                        border: const OutlineInputBorder(),
+                    if (modoVenta.startsWith('Unidad Base') && producto.unidadVenta == 'kg')
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: inputCtrl,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              autofocus: true,
+                              onChanged: (v) => setStateDialog((){}),
+                              decoration: const InputDecoration(
+                                labelText: 'Kilos enteros',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 1,
+                            child: DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              value: modoVenta.contains('1/4') ? '1/4' : (modoVenta.contains('1/2') ? '1/2' : (modoVenta.contains('3/4') ? '3/4' : '0')),
+                              decoration: const InputDecoration(labelText: 'Fracción', border: OutlineInputBorder()),
+                              items: const [
+                                DropdownMenuItem(value: '0', child: Text('0', style: TextStyle(fontSize: 14))),
+                                DropdownMenuItem(value: '1/4', child: Text('1/4', style: TextStyle(fontSize: 14))),
+                                DropdownMenuItem(value: '1/2', child: Text('1/2', style: TextStyle(fontSize: 14))),
+                                DropdownMenuItem(value: '3/4', child: Text('3/4', style: TextStyle(fontSize: 14))),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setStateDialog(() {
+                                    if (val == '0') {
+                                      modoVenta = 'Unidad Base';
+                                    } else {
+                                      modoVenta = 'Unidad Base - $val';
+                                    }
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      TextField(
+                        controller: inputCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        autofocus: true,
+                        onChanged: (v) => setStateDialog((){}),
+                        decoration: InputDecoration(
+                          labelText: modoVenta.startsWith('Monto') 
+                              ? 'Monto a Cobrar (\$)' 
+                              : (modoVenta == 'Gramos' 
+                                  ? 'Gramos (g)' 
+                                  : (modoVenta == 'Piezas' ? 'Cantidad (piezas)' : 'Cantidad (${producto.unidadVenta})')),
+                          border: const OutlineInputBorder(),
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: obsCtrl,
@@ -231,6 +289,10 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                         obsStr = '(Pedido original: ${inputVal.toStringAsFixed(0)} g)';
                       } else if (modoVenta == 'Gramos' && obsStr.isNotEmpty) {
                         obsStr = '(Pedido original: ${inputVal.toStringAsFixed(0)} g) - $obsStr';
+                      } else if (modoVenta == 'Piezas' && obsStr.isEmpty) {
+                        obsStr = '(Pedido original: ${inputVal.toStringAsFixed(0)} piezas)';
+                      } else if (modoVenta == 'Piezas' && obsStr.isNotEmpty) {
+                        obsStr = '(Pedido original: ${inputVal.toStringAsFixed(0)} piezas) - $obsStr';
                       }
 
                       if (overrideTotal && overrideVal != totalCalculado) {
@@ -459,7 +521,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                       List<Personal> repartidores = [];
                       
                       if (snapshot.hasData) {
-                        repartidores = snapshot.data!.where((p) => p.rol == 'Repartidor' && p.activo).toList();
+                        repartidores = snapshot.data!.where((p) => p.activo).toList();
                       }
 
                       repartidores.insert(0, Personal(
@@ -516,6 +578,20 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                         return;
                       }
 
+                      final bool? confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Confirmar Pedido'),
+                          content: const Text('¿Estás seguro de confirmar y guardar este pedido?'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: Colors.grey))),
+                            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirmar', style: TextStyle(color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accent)),
+                          ],
+                        ),
+                      );
+
+                      if (confirm != true) return;
+
                       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
 
                       try {
@@ -537,6 +613,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                               precioUnitario: i.precioUnitario,
                               observaciones: i.observaciones,
                               unidadVenta: i.producto.unidadVenta,
+                              seccion: i.producto.seccion,
                             );
                           }).toList(),
                           totalVenta: totalVenta,
@@ -588,12 +665,14 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
+        return Consumer<CartProvider>(
+          builder: (context, cartConsumer, child) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
           child: Column(
             children: [
               const SizedBox(height: 12),
@@ -756,6 +835,8 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
             ],
           ),
         );
+      }
+    );
       },
     );
   }

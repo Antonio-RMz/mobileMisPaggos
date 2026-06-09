@@ -36,7 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: AppTheme.background,
       drawer: const AppDrawer(),
       appBar: AppBar(
-        title: const Text('MisPaggos', style: TextStyle(fontSize: 24)),
+        title: const Text('MisPaggos'),
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -98,7 +98,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const Text(
                 'Hola,',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 16,
                   color: AppTheme.textLight,
                   fontWeight: FontWeight.w600,
                 ),
@@ -106,7 +106,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const Text(
                 'Resumen del Negocio',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 22,
                   fontWeight: FontWeight.w900,
                   color: AppTheme.textDark,
                   letterSpacing: -0.5,

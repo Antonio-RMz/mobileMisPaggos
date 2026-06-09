@@ -134,7 +134,7 @@ class PrinterService {
     buffer.writeln('TEXT 10,70,"2",0,1,1,"REP: $safeRepartidor"');
     
     // Total de la Venta
-    String total = "\\\$${ticket.totalVenta.toStringAsFixed(2)}";
+    String total = "\$${ticket.totalVenta.toStringAsFixed(2)}";
     buffer.writeln('TEXT 10,100,"2",0,1,1,"TOTAL: $total"');
     
     bytes.addAll(utf8.encode(buffer.toString()));
@@ -147,14 +147,14 @@ class PrinterService {
       img.Image? decodedImage = img.decodeImage(imgBytes);
       
       if (decodedImage != null) {
-        // Redimensionar a aprox 10mm x 10mm. A 203 DPI, 10mm son ~80 pixeles.
-        img.Image resized = img.copyResize(decodedImage, width: 80, height: 80);
+        // Redimensionar a aprox 15mm x 15mm. A 203 DPI, 15mm son ~120 pixeles.
+        img.Image resized = img.copyResize(decodedImage, width: 120, height: 120);
         
         int widthBytes = (resized.width + 7) ~/ 8;
         int heightDots = resized.height;
         
-        // Lo ponemos en la esquina derecha, más arriba (X=310, Y=100)
-        String bitmapCmd = 'BITMAP 310,100,$widthBytes,$heightDots,0,';
+        // Lo ponemos en la esquina derecha, más grande y un poco más a la izquierda (X=260, Y=70)
+        String bitmapCmd = 'BITMAP 260,70,$widthBytes,$heightDots,0,';
         bytes.addAll(utf8.encode(bitmapCmd));
         
         // Generar bitmap data (1 bit por pixel, MSB a LSB)

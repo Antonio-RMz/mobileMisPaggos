@@ -20,10 +20,8 @@ class _PersonalFormModalState extends State<PersonalFormModal> {
 
   final TextEditingController _nombreCtrl = TextEditingController();
   final TextEditingController _telefonoCtrl = TextEditingController();
-  final TextEditingController _usernameCtrl = TextEditingController();
-  final TextEditingController _passwordCtrl = TextEditingController();
 
-  String _selectedRol = 'Empleado';
+  String _selectedRol = 'Repartidor';
   final List<String> _roles = ['Empleado', 'Repartidor'];
   
   bool _activo = true;
@@ -37,31 +35,15 @@ class _PersonalFormModalState extends State<PersonalFormModal> {
       _telefonoCtrl.text = widget.personal!.telefono;
       _selectedRol = widget.personal!.rol;
       _activo = widget.personal!.activo;
-
-      _cargarCuentaUsuario();
+      _activo = widget.personal!.activo;
     }
   }
 
-  Future<void> _cargarCuentaUsuario() async {
-    try {
-      final doc = await FirebaseFirestore.instance.collection('usuarios').doc(widget.personal!.id).get();
-      if (doc.exists && mounted) {
-        setState(() {
-          _usernameCtrl.text = doc.data()?['username'] ?? '';
-          _passwordCtrl.text = doc.data()?['password'] ?? '';
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading user account: $e');
-    }
-  }
 
   @override
   void dispose() {
     _nombreCtrl.dispose();
     _telefonoCtrl.dispose();
-    _usernameCtrl.dispose();
-    _passwordCtrl.dispose();
     super.dispose();
   }
 
@@ -78,28 +60,12 @@ class _PersonalFormModalState extends State<PersonalFormModal> {
             activo: _activo,
           );
           String nuevoId = await _firebaseService.addPersonal(nuevoPersonal);
-          
-          if (nuevoId.isNotEmpty) {
-            await _firebaseService.crearCuentaUsuario(
-              personalId: nuevoId,
-              username: _usernameCtrl.text.trim(),
-              password: _passwordCtrl.text.trim(),
-              rol: _selectedRol,
-            );
-          }
         } else {
           widget.personal!.nombre = _nombreCtrl.text.trim();
           widget.personal!.telefono = _telefonoCtrl.text.trim();
           widget.personal!.rol = _selectedRol;
           widget.personal!.activo = _activo;
           await _firebaseService.updatePersonal(widget.personal!);
-
-          await _firebaseService.actualizarCuentaUsuario(
-            personalId: widget.personal!.id,
-            username: _usernameCtrl.text.trim(),
-            password: _passwordCtrl.text.trim(),
-            rol: _selectedRol,
-          );
         }
 
         if (mounted) {
@@ -150,7 +116,7 @@ class _PersonalFormModalState extends State<PersonalFormModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(widget.personal == null ? 'Alta de Personal' : 'Editar Personal', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                Text(widget.personal == null ? 'Alta de Repartidor' : 'Editar Repartidor', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
                 IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
               ],
             ),
@@ -209,34 +175,6 @@ class _PersonalFormModalState extends State<PersonalFormModal> {
                       onChanged: (val) => setState(() => _activo = val),
                       contentPadding: EdgeInsets.zero,
                     ),
-
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.vpn_key_outlined, color: Colors.orange, size: 20),
-                            SizedBox(width: 8),
-                            Text('Cuenta de Acceso', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        _buildLabel('Usuario'),
-                        _buildTextField(controller: _usernameCtrl, hintText: 'Ej. rep_juan', icon: Icons.alternate_email, isRequired: true),
-                        const SizedBox(height: 12),
-                        _buildLabel('Contraseña'),
-                        _buildTextField(controller: _passwordCtrl, hintText: 'Contraseña segura', icon: Icons.lock_outline, isRequired: true),
-                      ],
-                    ),
-                  ),
 
                   const SizedBox(height: 24),
                   _isSaving

@@ -105,6 +105,24 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                         return;
                       }
 
+                      final bool? confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Confirmar Abono'),
+                          content: Text('¿Deseas registrar este abono general por \$$abonoFinal?'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: Colors.grey))),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green[600]),
+                              onPressed: () => Navigator.pop(ctx, true), 
+                              child: const Text('Confirmar', style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm != true) return;
+
                       // Mostrar Loading
                       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
 
@@ -225,6 +243,24 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El abono no puede superar la deuda del ticket')));
                         return;
                       }
+
+                      final bool? confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Confirmar Abono'),
+                          content: Text('¿Deseas registrar este abono de \$$abonoFinal al ticket #${ticket.folio}?'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: Colors.grey))),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[800]),
+                              onPressed: () => Navigator.pop(ctx, true), 
+                              child: const Text('Confirmar', style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm != true) return;
 
                       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
 

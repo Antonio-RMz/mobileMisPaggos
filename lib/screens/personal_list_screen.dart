@@ -55,7 +55,7 @@ class _PersonalListScreenState extends State<PersonalListScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text('Gestión de Personal', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.bold)),
+        title: const Text('Gestión de Repartidores'),
         iconTheme: const IconThemeData(color: AppTheme.textDark),
         actions: [
           PopupMenuButton<String>(

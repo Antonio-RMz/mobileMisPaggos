@@ -8,6 +8,7 @@ class TicketItem {
   double precioUnitario;
   String observaciones;
   String unidadVenta;
+  String seccion;
 
   TicketItem({
     required this.productoId,
@@ -17,6 +18,7 @@ class TicketItem {
     required this.precioUnitario,
     this.observaciones = '',
     this.unidadVenta = '',
+    this.seccion = 'general',
   });
 
   double get subtotal => cantidad * precioUnitario;
@@ -57,6 +59,7 @@ class TicketItem {
       'precioUnitario': precioUnitario,
       'observaciones': observaciones,
       'unidadVenta': unidadVenta,
+      'seccion': seccion,
       'subtotal': subtotal,
     };
   }
@@ -70,6 +73,7 @@ class TicketItem {
       precioUnitario: (map['precioUnitario'] ?? 0).toDouble(),
       observaciones: map['observaciones'] ?? '',
       unidadVenta: map['unidadVenta'] ?? '',
+      seccion: map['seccion'] ?? 'general',
     );
   }
 }

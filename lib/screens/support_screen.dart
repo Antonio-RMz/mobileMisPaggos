@@ -68,6 +68,25 @@ class SupportScreen extends StatelessWidget {
                 _buildContactRow(LucideIcons.phone, '2311045499'),
                 const SizedBox(height: 16),
                 _buildContactRow(LucideIcons.mail, 'rodriguezmendezmarcoantonioh@gmail.com'),
+                const SizedBox(height: 32),
+                const Divider(),
+                const SizedBox(height: 16),
+                const Text(
+                  'Versión de la aplicación:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.textLight,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'V.0.001',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primary,
+                  ),
+                ),
               ],
             ),
           ),

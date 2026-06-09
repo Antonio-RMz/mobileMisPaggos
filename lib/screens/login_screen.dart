@@ -286,7 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 32),
                           SizedBox(
                             width: double.infinity,
-                            height: 50,
+                            height: 60,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
@@ -297,18 +297,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 elevation: 5,
                               ),
                               onPressed: _isLoading ? null : _loginManual,
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: _isLoading 
-                                    ? const CircularProgressIndicator()
-                                    : const Text(
-                                        'INICIAR SESIÓN',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                              child: _isLoading 
+                                  ? const CircularProgressIndicator()
+                                  : const Text(
+                                      'INICIAR SESIÓN',
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
                                       ),
-                              ),
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 24),

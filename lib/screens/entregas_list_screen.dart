@@ -62,12 +62,12 @@ class _EntregasListScreenState extends State<EntregasListScreen> {
     return FirebaseFirestore.instance
         .collection('tickets')
         .where('empresaId', isEqualTo: empresaId)
-        .where('tipoEntrega', isEqualTo: 'Domicilio')
         .snapshots()
         .map((snapshot) {
       final list = snapshot.docs.map((doc) => Ticket.fromMap(doc.id, doc.data())).toList();
       
       final filtrados = list.where((t) {
+        if (t.tipoEntrega != 'Domicilio') return false;
         if (t.fecha == null) return false;
         final f = t.fecha!.toDate();
         if (f.isBefore(_fechaInicio) || f.isAfter(_fechaFin)) return false;
@@ -92,8 +92,7 @@ class _EntregasListScreenState extends State<EntregasListScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-        backgroundColor: Colors.white,
+        title: Text(widget.title),
         elevation: 0,
         iconTheme: const IconThemeData(color: AppTheme.textDark),
         bottom: PreferredSize(

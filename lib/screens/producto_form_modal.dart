@@ -22,8 +22,8 @@ class _ProductoFormModalState extends State<ProductoFormModal> {
   final TextEditingController _precioCtrl = TextEditingController();
   final TextEditingController _observacionesCtrl = TextEditingController();
 
-  String _selectedCategoria = 'General';
-  final List<String> _categorias = ['General', 'Carnes', 'Cremería', 'Abarrotes', 'Catálogo'];
+  String _selectedCategoria = 'Otros';
+  final List<String> _categorias = ['Calzado', 'Cosméticos', 'Ropa', 'Otros'];
 
   bool _isSaving = false;
 
@@ -39,8 +39,19 @@ class _ProductoFormModalState extends State<ProductoFormModal> {
       if (!_categorias.contains(_selectedCategoria)) {
         _categorias.insert(0, _selectedCategoria);
       }
+    } else {
+      Future.microtask(() => _cargarSiguienteCodigo());
     }
     _categorias.add('Nueva Categoría...');
+  }
+
+  Future<void> _cargarSiguienteCodigo() async {
+    final codigo = await _firebaseService.getSiguienteCodigoCatalogo();
+    if (mounted && _codigoCtrl.text.isEmpty) {
+      setState(() {
+        _codigoCtrl.text = codigo;
+      });
+    }
   }
 
   @override
@@ -66,6 +77,7 @@ class _ProductoFormModalState extends State<ProductoFormModal> {
             precio: double.tryParse(_precioCtrl.text.trim()) ?? 0.0,
             observaciones: _observacionesCtrl.text.trim(),
             categoria: _selectedCategoria,
+            seccion: 'catalogo',
           );
           await _firebaseService.addProducto(nuevoProducto);
         } else {

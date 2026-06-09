@@ -71,7 +71,7 @@ class PdfReportService {
       ),
     );
 
-    await Printing.sharePdf(bytes: await pdf.save(), filename: 'Corte_General.pdf');
+    await Printing.sharePdf(bytes: await pdf.save(), filename: 'corteG-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf');
   }
 
   static Future<void> generateCorteRepartidorPdf(String repartidorNombre, List<Ticket> tickets, String dateRangeLabel) async {
@@ -138,7 +138,7 @@ class PdfReportService {
       ),
     );
 
-    await Printing.sharePdf(bytes: await pdf.save(), filename: 'Corte_${repartidorNombre.replaceAll(" ", "_")}.pdf');
+    await Printing.sharePdf(bytes: await pdf.save(), filename: 'corteR-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf');
   }
 
   static pw.Widget _buildHeader(String title, String subtitle, pw.MemoryImage image) {

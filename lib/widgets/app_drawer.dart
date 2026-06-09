@@ -25,11 +25,9 @@ class AppDrawer extends StatelessWidget {
 
     return Drawer(
       backgroundColor: Colors.white,
+      clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(
-          topRight: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
+        borderRadius: BorderRadius.zero,
       ),
       child: Column(
         children: [
@@ -46,10 +44,7 @@ class AppDrawer extends StatelessWidget {
             padding: const EdgeInsets.only(top: 60, bottom: 30, left: 24, right: 24),
             decoration: const BoxDecoration(
               color: AppTheme.primary,
-              borderRadius: BorderRadius.only(
-                topRight: Radius.circular(30),
-                bottomRight: Radius.circular(30),
-              ),
+              borderRadius: BorderRadius.zero,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black12,
@@ -166,8 +161,8 @@ class AppDrawer extends StatelessWidget {
                 ),
                 _buildDrawerItem(
                   context: context,
-                  icon: Icons.badge_outlined,
-                  title: 'Personal (Empleados)',
+                  icon: LucideIcons.bike,
+                  title: 'Repartidores',
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(

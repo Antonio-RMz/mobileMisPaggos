@@ -90,7 +90,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
         backgroundColor: const Color(0xFFF8F9FA),
         drawer: const AppDrawer(),
         appBar: AppBar(
-          title: const Text('Reportes y Cortes', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark, fontSize: 18)),
+          title: const Text('Reportes y Cortes'),
           backgroundColor: Colors.white,
           elevation: 0,
           iconTheme: const IconThemeData(color: AppTheme.textDark),

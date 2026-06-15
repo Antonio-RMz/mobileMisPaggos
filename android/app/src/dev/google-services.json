@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "169345996032",
+    "project_id": "mispaggosdev",
+    "storage_bucket": "mispaggosdev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:169345996032:android:a9d7b7bbcb4a20afe6cfe5",
+        "android_client_info": {
+          "package_name": "com.example.gestion_clientes_carniceria"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCbGx1y4CAv1WN7fFWYY6UloUgl8VA5on0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:169345996032:android:ab1f518e50bbe93fe6cfe5",
+        "android_client_info": {
+          "package_name": "com.example.gestion_clientes_carniceria.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCbGx1y4CAv1WN7fFWYY6UloUgl8VA5on0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

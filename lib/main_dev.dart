@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'firebase_options_dev.dart';
 import 'main.dart';
 import 'config/environment.dart';
 
@@ -12,9 +12,13 @@ void main() async {
 
   // Inicialización de Firebase con las opciones de configuración para DEV
   // (Actualmente apuntando a systdm-ef45c según la instrucción)
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptionsDev.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint("Ignorando error de inicialización de Firebase: $e");
+  }
 
   runApp(const GestionClientesApp());
 }

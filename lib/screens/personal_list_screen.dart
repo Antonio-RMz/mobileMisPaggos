@@ -5,6 +5,9 @@ import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
 import 'personal_form_modal.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import '../utils/overlay_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/string_utils.dart';
 
 class PersonalListScreen extends StatefulWidget {
   const PersonalListScreen({super.key});
@@ -26,26 +29,13 @@ class _PersonalListScreenState extends State<PersonalListScreen> {
     );
   }
 
-  void _confirmarEliminacion(Personal personal) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Eliminar Personal'),
-        content: Text('¿Estás seguro de que deseas eliminar a ${personal.nombre}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              _firebaseService.deletePersonal(personal.id);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Eliminado exitosamente')));
-            },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+  Future<void> _eliminarPersonal(Personal p) async {
+    bool pinValid = await _mostrarDialogoPIN(context);
+    if (!pinValid) return;
+
+    if (!mounted) return;
+    _firebaseService.deletePersonal(p.id);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Eliminado exitosamente')));
   }
 
   @override
@@ -109,7 +99,7 @@ class _PersonalListScreenState extends State<PersonalListScreen> {
                       borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
                     ),
                     SlidableAction(
-                      onPressed: (context) => _confirmarEliminacion(p),
+                      onPressed: (context) => _eliminarPersonal(p),
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
                       icon: Icons.delete,
@@ -156,5 +146,61 @@ class _PersonalListScreenState extends State<PersonalListScreen> {
         label: const Text('Nuevo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
+  }
+
+  Future<bool> _mostrarDialogoPIN(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    final masterPin = prefs.getString('master_pin');
+
+    if (masterPin == null || masterPin.isEmpty) {
+      // Si no hay PIN configurado, permitir acceso
+      return true;
+    }
+
+    String inputPin = '';
+    bool pinCorrecto = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Se requiere PIN de Seguridad', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+        content: TextField(
+          obscureText: true,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          maxLength: 4,
+          onChanged: (val) => inputPin = val,
+          decoration: InputDecoration(
+            hintText: '****',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            prefixIcon: const Icon(Icons.lock),
+          ),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+            },
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (inputPin == masterPin) {
+                pinCorrecto = true;
+                Navigator.pop(ctx);
+              } else {
+                OverlayHelper.showError(ctx, message: 'PIN incorrecto');
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            child: const Text('Confirmar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    return pinCorrecto;
   }
 }

@@ -6,6 +6,7 @@ import '../services/firebase_service.dart';
 import '../services/pdf_report_service.dart';
 import '../models/ticket_model.dart';
 import '../models/abono_model.dart';
+import '../models/gasto_model.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import '../utils/overlay_helper.dart';
@@ -25,11 +26,19 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
   String _filtro = 'Hoy';
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now();
+  bool _isUnlocked = false;
+  final TextEditingController _pinCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _setDates('Hoy');
+  }
+
+  @override
+  void dispose() {
+    _pinCtrl.dispose();
+    super.dispose();
   }
 
   void _setDates(String filtro) {
@@ -87,6 +96,61 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isUnlocked) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: const Text('Reportes (Bloqueado)'),
+          backgroundColor: Colors.white,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(LucideIcons.lock, size: 80, color: AppTheme.primary),
+                const SizedBox(height: 24),
+                const Text('Esta sección contiene información sensible.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey)),
+                const SizedBox(height: 32),
+                TextField(
+                  controller: _pinCtrl,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 24, letterSpacing: 8),
+                  decoration: InputDecoration(
+                    hintText: '****',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    if (_pinCtrl.text == '1234') {
+                      setState(() {
+                        _isUnlocked = true;
+                      });
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN incorrecto'), backgroundColor: Colors.red));
+                      _pinCtrl.clear();
+                    }
+                  },
+                  child: const Text('Desbloquear Reportes', style: TextStyle(fontSize: 18, color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -97,13 +161,6 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
           backgroundColor: Colors.white,
           elevation: 0,
           iconTheme: const IconThemeData(color: AppTheme.textDark),
-          actions: [
-            IconButton(
-              icon: const Icon(LucideIcons.lock),
-              onPressed: () => _mostrarDialogoPIN(context),
-              tooltip: 'Resumen del Negocio',
-            ),
-          ],
           bottom: const TabBar(
             labelColor: AppTheme.primary,
             unselectedLabelColor: Colors.grey,
@@ -120,101 +177,165 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
             return StreamBuilder<List<Abono>>(
               stream: _firebaseService.getAbonosByDateRange(_startDate, _endDate),
               builder: (context, abonosSnapshot) {
-                if (ticketsSnapshot.connectionState == ConnectionState.waiting || abonosSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+                return StreamBuilder<List<Gasto>>(
+                  stream: _firebaseService.getGastosByDateRange(_startDate, _endDate),
+                  builder: (context, gastosSnapshot) {
+                    if (ticketsSnapshot.connectionState == ConnectionState.waiting || 
+                        abonosSnapshot.connectionState == ConnectionState.waiting ||
+                        gastosSnapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                final tickets = ticketsSnapshot.data ?? [];
-                final abonos = abonosSnapshot.data ?? [];
+                    final tickets = ticketsSnapshot.data ?? [];
+                    final abonos = abonosSnapshot.data ?? [];
+                    final gastos = gastosSnapshot.data ?? [];
 
-                return Column(
-              children: [
-                // Filtro de fecha (común para ambas pestañas)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: _filtro,
-                        icon: const Icon(LucideIcons.calendar, color: AppTheme.primary),
-                        items: ['Hoy', 'Últimos 7 días', 'Este Mes', 'Rango personalizado'].map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(
-                              value == 'Rango personalizado' && _filtro == 'Rango personalizado'
-                                  ? 'Rango: ${DateFormat('dd/MM/yy').format(_startDate)} - ${DateFormat('dd/MM/yy').format(_endDate)}'
-                                  : value,
-                              style: const TextStyle(fontWeight: FontWeight.w500),
+                    return Column(
+                      children: [
+                        // Filtro de fecha (común para ambas pestañas)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade300),
                             ),
-                          );
-                        }).toList(),
-                        onChanged: (val) async {
-                          if (val == 'Rango personalizado') {
-                            await _seleccionarRango(context);
-                          } else if (val != null) {
-                            _setDates(val);
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-                
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _buildCorteGeneralTab(tickets, abonos),
-                      _buildCorteRepartidorTab(tickets, abonos),
-                    ],
-                  ),
-                ),
-              ],
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: _filtro,
+                                icon: const Icon(LucideIcons.calendar, color: AppTheme.primary),
+                                items: ['Hoy', 'Últimos 7 días', 'Este Mes', 'Rango personalizado'].map((String value) {
+                                  return DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(
+                                      value == 'Rango personalizado' && _filtro == 'Rango personalizado'
+                                          ? 'Rango: ${DateFormat('dd/MM/yy').format(_startDate)} - ${DateFormat('dd/MM/yy').format(_endDate)}'
+                                          : value,
+                                      style: const TextStyle(fontWeight: FontWeight.w500),
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (val) async {
+                                  if (val == 'Rango personalizado') {
+                                    await _seleccionarRango(context);
+                                  } else if (val != null) {
+                                    _setDates(val);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                        
+                        Expanded(
+                          child: TabBarView(
+                            children: [
+                              _buildCorteGeneralTab(tickets, abonos, gastos),
+                              _buildCorteRepartidorTab(tickets, abonos),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                );
+              }
             );
           }
-        );
           }
         ),
       ),
     );
   }
 
-  void _mostrarDialogoPIN(BuildContext context) {
+  void _mostrarDialogoRegistrarGasto(BuildContext contextOriginal) {
+    final TextEditingController conceptoCtrl = TextEditingController();
+    final TextEditingController montoCtrl = TextEditingController();
     final TextEditingController pinCtrl = TextEditingController();
+    
     showDialog(
-      context: context,
-      builder: (context) {
+      context: contextOriginal,
+      builder: (ctxGasto) {
         return AlertDialog(
-          title: const Text('Acceso Restringido'),
-          content: TextField(
-            controller: pinCtrl,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'PIN de acceso', border: OutlineInputBorder()),
-            autofocus: true,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Registrar Salida de Dinero (Gasto)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: conceptoCtrl,
+                decoration: const InputDecoration(labelText: 'Concepto (Ej. Gasolina, Bolsas)'),
+                textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: montoCtrl,
+                decoration: const InputDecoration(labelText: 'Monto a retirar', prefixText: '\$'),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pinCtrl,
+                decoration: const InputDecoration(labelText: 'PIN de Confirmación'),
+                keyboardType: TextInputType.number,
+                obscureText: true,
+              ),
+            ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctxGasto),
+              child: const Text('Cancelar'),
+            ),
             ElevatedButton(
-              onPressed: () {
-                if (pinCtrl.text == '1234') {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN incorrecto'), backgroundColor: Colors.red));
+              onPressed: () async {
+                final pin = pinCtrl.text.trim();
+                final concepto = conceptoCtrl.text.trim();
+                final montoStr = montoCtrl.text.trim();
+
+                if (concepto.isEmpty || montoStr.isEmpty || pin.isEmpty) {
+                  ScaffoldMessenger.of(contextOriginal).showSnackBar(const SnackBar(content: Text('Por favor llena todos los campos')));
+                  return;
+                }
+
+                if (pin != '1234') {
+                  ScaffoldMessenger.of(contextOriginal).showSnackBar(const SnackBar(content: Text('PIN Incorrecto')));
+                  return;
+                }
+
+                final monto = double.tryParse(montoStr);
+                if (monto == null || monto <= 0) {
+                  ScaffoldMessenger.of(contextOriginal).showSnackBar(const SnackBar(content: Text('Monto inválido')));
+                  return;
+                }
+
+                try {
+                  Navigator.pop(ctxGasto);
+                  OverlayHelper.showLoadingOverlay(contextOriginal);
+                  
+                  final fireService = Provider.of<FirebaseService>(contextOriginal, listen: false);
+                  await fireService.registrarGasto(concepto, monto);
+
+                  if (contextOriginal.mounted) {
+                    OverlayHelper.hideLoadingOverlay(contextOriginal);
+                    ScaffoldMessenger.of(contextOriginal).showSnackBar(const SnackBar(content: Text('Gasto registrado correctamente')));
+                  }
+                } catch (e) {
+                  if (contextOriginal.mounted) {
+                    OverlayHelper.hideLoadingOverlay(contextOriginal);
+                    ScaffoldMessenger.of(contextOriginal).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  }
                 }
               },
-              child: const Text('Ingresar'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700),
+              child: const Text('Registrar Gasto', style: TextStyle(color: Colors.white)),
             ),
           ],
         );
-      },
+      }
     );
   }
 
@@ -304,7 +425,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
     );
   }
 
-  Widget _buildCorteGeneralTab(List<Ticket> tickets, List<Abono> abonos) {
+  Widget _buildCorteGeneralTab(List<Ticket> tickets, List<Abono> abonos, List<Gasto> gastos) {
     double totalGeneral = 0;
     double totalDomicilio = 0;
     double totalLocal = 0;
@@ -337,7 +458,13 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
       }
     }
     
+    double totalGastos = 0;
+    for (var g in gastos) {
+      totalGastos += g.monto;
+    }
+
     totalEfectivo += totalAbonosExtra;
+    totalEfectivo -= totalGastos;
 
     return CustomScrollView(
       slivers: [
@@ -411,7 +538,18 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                         children: [
                           const Icon(LucideIcons.clock, size: 16, color: Colors.orange),
                           const SizedBox(width: 4),
-                          Text('Extra: ${_currencyFormat.format(totalAbonosExtra)}', style: const TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.bold)),
+                          Text('Abonos Anteriores: ${_currencyFormat.format(totalAbonosExtra)}', style: const TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ],
+                    if (totalGastos > 0) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(LucideIcons.minusCircle, size: 16, color: Colors.red),
+                          const SizedBox(width: 4),
+                          Text('Menos Gastos: ${_currencyFormat.format(totalGastos)}', style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ]
@@ -421,13 +559,73 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: ElevatedButton.icon(
+                  onPressed: () => _mostrarDialogoRegistrarGasto(context),
+                  icon: const Icon(LucideIcons.arrowDownCircle, color: Colors.white),
+                  label: const Text('Registrar Salida de Dinero', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade700,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: ElevatedButton.icon(
                   onPressed: () {
-                    PdfReportService.generateCorteGeneralPdf(context, tickets, abonos, _filtro);
+                    PdfReportService.generateCorteGeneralPdf(context, tickets, abonos, gastos, _filtro);
                   },
                   icon: const Icon(LucideIcons.printer, color: Colors.white),
                   label: const Text('Generar PDF Corte General', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    PdfReportService.generateProductosVendidosPdf(context, tickets, _filtro);
+                  },
+                  icon: const Icon(LucideIcons.fileText, color: Colors.white),
+                  label: const Text('Generar PDF Productos Vendidos', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.accent,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                    try {
+                      final fireService = Provider.of<FirebaseService>(context, listen: false);
+                      final ticketsDeuda = await fireService.getAllTicketsConDeudaFuture();
+                      final abonosFut = await fireService.getAllAbonosFuture();
+                      if (context.mounted) Navigator.pop(context);
+                      if (context.mounted) {
+                        PdfReportService.generateReporteDeudoresPdf(context, ticketsDeuda, abonosFut);
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                      }
+                    }
+                  },
+                  icon: const Icon(LucideIcons.users, color: Colors.white),
+                  label: const Text('Generar PDF Reporte Deudores', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade600,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -507,6 +705,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
     }
 
     for (var r in repartidoresNombres) {
+       if (r.length == 20 && !r.contains(' ')) continue; // Omitir IDs fantasma
        ticketsPorRepartidor[r] = tickets.where((t) => t.tipoEntrega == 'Domicilio' && t.repartidorNombre == r).toList();
     }
 
@@ -630,7 +829,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Extra:', style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600)),
+                            const Text('Abonos Anteriores:', style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600)),
                             Text(_currencyFormat.format(abonosCobrados), style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
                           ],
                         )

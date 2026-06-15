@@ -4,6 +4,7 @@ import '../models/cliente_model.dart';
 import '../models/producto_model.dart';
 import '../models/ticket_model.dart';
 import '../models/abono_model.dart';
+import '../models/gasto_model.dart';
 import '../models/personal_model.dart';
 
 /// Servicio para manejar la lógica de la base de datos Firestore
@@ -19,6 +20,8 @@ class FirebaseService {
       FirebaseFirestore.instance.collection('abonos');
   final CollectionReference _personalCollection = 
       FirebaseFirestore.instance.collection('personal');
+  final CollectionReference _gastosCollection = 
+      FirebaseFirestore.instance.collection('gastos');
 
   final String empresaId;
 
@@ -289,8 +292,8 @@ class FirebaseService {
           transaction.set(abonoRef, abono.toMap());
         }
 
-        // 3. Actualizar la Deuda Total del Cliente
-        if (clienteDoc != null && clienteDoc.exists) {
+        // 3. Actualizar la Deuda Total del Cliente si se creó como Con Deuda (Venta Local a Crédito)
+        if (ticket.estado == 'Con Deuda' && clienteDoc != null && clienteDoc.exists && ticket.clienteId != 'GNR001') {
           transaction.update(_clientesCollection.doc(ticket.clienteId), {
             'deuda_total': FieldValue.increment(saldoNuevo),
             'updateAt': Timestamp.now()
@@ -300,11 +303,8 @@ class FirebaseService {
     } on TimeoutException {
       await _procesarVentaOffline(ticket);
     } catch (e) {
-      if (e.toString().contains('UNAVAILABLE') || e.toString().contains('failed to get document')) {
-        await _procesarVentaOffline(ticket);
-      } else {
-        print('Error en procesarVenta: $e');
-      }
+      print('Error en procesarVenta: $e, intentando modo offline...');
+      await _procesarVentaOffline(ticket);
     }
   }
 
@@ -355,8 +355,8 @@ class FirebaseService {
         batch.set(abonoRef, abono.toMap());
       }
 
-      // 3. Actualizar la Deuda Total del Cliente
-      if (ticket.saldoRestante > 0 && ticket.clienteId.isNotEmpty) {
+      // 3. Actualizar la Deuda Total del Cliente si se creó como Con Deuda (Venta Local a Crédito)
+      if (ticket.estado == 'Con Deuda' && ticket.saldoRestante > 0 && ticket.clienteId.isNotEmpty && ticket.clienteId != 'GNR001') {
         batch.update(_clientesCollection.doc(ticket.clienteId), {
           'deuda_total': FieldValue.increment(ticket.saldoRestante),
           'updateAt': Timestamp.now()
@@ -370,7 +370,80 @@ class FirebaseService {
     }
   }
 
+  /// Transfiere la deuda de un ticket al cliente (se envía a Atención Prioritaria)
+  Future<void> marcarTicketComoDeudaCliente(Ticket ticket) async {
+    if (ticket.saldoRestante <= 0 || ticket.deudaManualAsignada) return;
+
+    final batch = FirebaseFirestore.instance.batch();
+
+    ticket.estado = 'Con Deuda';
+    ticket.deudaManualAsignada = true;
+    ticket.pagoRepartidorConfirmado = true; // Liberar al repartidor
+    ticket.updateAt = Timestamp.now();
+    ticket.updateBy = 'Sistema';
+
+    batch.update(_ticketsCollection.doc(ticket.id), {
+      'estado': ticket.estado,
+      'deudaManualAsignada': ticket.deudaManualAsignada,
+      'pagoRepartidorConfirmado': ticket.pagoRepartidorConfirmado,
+      'updateAt': ticket.updateAt,
+      'updateBy': ticket.updateBy,
+    });
+
+    if (ticket.clienteId.isNotEmpty && ticket.clienteId != 'GNR001') {
+      batch.update(_clientesCollection.doc(ticket.clienteId), {
+        'deuda_total': FieldValue.increment(ticket.saldoRestante),
+        'updateAt': Timestamp.now(),
+      });
+    }
+
+    await batch.commit();
+  }
+
   /// Cancela un ticket y revierte la deuda si aplica
+  Future<void> marcarTicketComoTransferencia(Ticket ticket) async {
+    if (ticket.saldoRestante <= 0) return; // Ya esta pagado
+    
+    final batch = FirebaseFirestore.instance.batch();
+
+    double deudaActual = ticket.saldoRestante;
+    ticket.metodoPago = 'Transferencia';
+    ticket.pagoRepartidorConfirmado = true;
+    ticket.totalAbonado = ticket.totalVenta;
+    ticket.estado = 'Pagado';
+    ticket.updateAt = Timestamp.now();
+
+    final ticketRef = _ticketsCollection.doc(ticket.id);
+    batch.update(ticketRef, ticket.toMap());
+
+    // Abono para el cliente
+    final abonoId = _abonosCollection.doc().id;
+    final abono = Abono(
+      id: abonoId,
+      clienteId: ticket.clienteId,
+      ticketId: ticket.id,
+      monto: deudaActual,
+      repartidorId: ticket.repartidorId,
+      empresaId: empresaId,
+      createAt: Timestamp.now(),
+      fecha: Timestamp.now(),
+      createBy: 'Sistema',
+    );
+    batch.set(_abonosCollection.doc(abonoId), abono.toMap());
+    
+    // Abono de conciliación para cuadrar deuda del cliente
+    if (ticket.estado == 'Con Deuda' && ticket.clienteId != 'GNR001') {
+      final clienteRef = _clientesCollection.doc(ticket.clienteId);
+      batch.update(clienteRef, {'deuda_total': FieldValue.increment(-deudaActual)});
+    }
+
+    try {
+      await batch.commit().timeout(const Duration(seconds: 5));
+    } catch (e) {
+      throw Exception('Error al liquidar por transferencia: $e');
+    }
+  }
+
   Future<void> cancelarTicket(Ticket ticket, String motivo) async {
     try {
       await FirebaseFirestore.instance.runTransaction((transaction) async {
@@ -390,7 +463,7 @@ class FirebaseService {
           'updateAt': Timestamp.now()
         });
 
-        if (clienteDoc != null && clienteDoc.exists) {
+        if (clienteDoc != null && clienteDoc.exists && ticket.estado == 'Con Deuda') {
           transaction.update(clienteRef, {
             'deuda_total': FieldValue.increment(-ticket.saldoRestante),
             'updateAt': Timestamp.now()
@@ -400,12 +473,8 @@ class FirebaseService {
     } on TimeoutException {
       await _cancelarTicketOffline(ticket, motivo);
     } catch (e) {
-      if (e.toString().contains('UNAVAILABLE') || e.toString().contains('failed to get document')) {
-        await _cancelarTicketOffline(ticket, motivo);
-      } else {
-        print('Error cancelando ticket: $e');
-        rethrow;
-      }
+      print('Error cancelando ticket: $e, intentando modo offline...');
+      await _cancelarTicketOffline(ticket, motivo);
     }
   }
 
@@ -419,7 +488,7 @@ class FirebaseService {
       'updateAt': Timestamp.now()
     });
 
-    if (ticket.saldoRestante > 0 && ticket.clienteId.isNotEmpty) {
+    if (ticket.saldoRestante > 0 && ticket.clienteId.isNotEmpty && ticket.estado == 'Con Deuda') {
       final clienteRef = _clientesCollection.doc(ticket.clienteId);
       batch.update(clienteRef, {
         'deuda_total': FieldValue.increment(-ticket.saldoRestante),
@@ -468,7 +537,7 @@ class FirebaseService {
           );
           transaction.set(abonoRef, abono.toMap());
 
-          if (clienteDoc != null && clienteDoc.exists) {
+          if (clienteDoc != null && clienteDoc.exists && ticket.estado == 'Con Deuda') {
             transaction.update(clienteRef, {
               'deuda_total': FieldValue.increment(-ticket.saldoRestante),
               'updateAt': Timestamp.now()
@@ -479,12 +548,8 @@ class FirebaseService {
     } on TimeoutException {
       await _confirmarPagoRepartidorOffline(ticket, metodoPago: metodoPago, cobradoPor: cobradoPor);
     } catch (e) {
-      if (e.toString().contains('UNAVAILABLE') || e.toString().contains('failed to get document')) {
-        await _confirmarPagoRepartidorOffline(ticket, metodoPago: metodoPago, cobradoPor: cobradoPor);
-      } else {
-        print('Error confirmando pago repartidor: $e');
-        rethrow;
-      }
+      print('Error confirmando pago repartidor: $e, intentando modo offline...');
+      await _confirmarPagoRepartidorOffline(ticket, metodoPago: metodoPago, cobradoPor: cobradoPor);
     }
   }
 
@@ -515,7 +580,7 @@ class FirebaseService {
       );
       batch.set(abonoRef, abono.toMap());
 
-      if (ticket.clienteId.isNotEmpty) {
+      if (ticket.clienteId.isNotEmpty && ticket.estado == 'Con Deuda') {
         final clienteRef = _clientesCollection.doc(ticket.clienteId);
         batch.update(clienteRef, {
           'deuda_total': FieldValue.increment(-ticket.saldoRestante),
@@ -584,16 +649,15 @@ class FirebaseService {
     );
     batch.set(abonoRef, abono.toMap());
 
-    // 2. Traer tickets con deuda y ordenarlos en memoria (ascendente: viejos primero)
+    // 2. Traer tickets del cliente (sin filtro de estado para evitar errores de índice y offline caching)
     final snapshotTickets = await _ticketsCollection
         .where('empresaId', isEqualTo: empresaId)
         .where('clienteId', isEqualTo: clienteId)
-        .where('estado', isEqualTo: 'Con Deuda')
         .get();
 
     final ticketsList = snapshotTickets.docs.map((doc) {
       return Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>);
-    }).toList();
+    }).where((t) => t.estado == 'Con Deuda' && t.saldoRestante > 0).toList();
 
     ticketsList.sort((a, b) {
       final tA = a.fecha ?? Timestamp.now();
@@ -648,9 +712,9 @@ class FirebaseService {
 
     // 5. Commit de toda la transacción
     try {
-      await batch.commit().timeout(const Duration(seconds: 3));
+      await batch.commit().timeout(const Duration(seconds: 4));
     } on TimeoutException {
-      // Se encola localmente
+      // Se encola localmente, es normal en offline
     }
   }
 
@@ -807,6 +871,111 @@ class FirebaseService {
   // REPORTES / CORTE DE CAJA
   // =========================================================================
 
+  Future<void> registrarAbonoRepartidor(String repartidorNombre, double monto) async {
+    final batch = FirebaseFirestore.instance.batch();
+    
+    // Obtener los tickets del repartidor que deba a caja
+    final ticketsSnapshot = await _ticketsCollection
+        .where('empresaId', isEqualTo: empresaId)
+        .get();
+
+    final tickets = ticketsSnapshot.docs
+        .map((d) => Ticket.fromMap(d.id, d.data() as Map<String, dynamic>))
+        .where((t) {
+          bool esMismoRepartidor = t.repartidorNombre?.trim().toLowerCase() == repartidorNombre.trim().toLowerCase();
+          bool esPendiente = t.estadoEntrega != 'Cancelado' && !t.pagoRepartidorConfirmado && t.saldoRestante > 0;
+          return esMismoRepartidor && esPendiente;
+        })
+        .toList();
+
+    // Ordenar por fecha (los más antiguos primero)
+    tickets.sort((a, b) => (a.fecha ?? Timestamp.now()).compareTo(b.fecha ?? Timestamp.now()));
+
+    double abonoRestante = monto;
+
+    for (var t in tickets) {
+      if (abonoRestante <= 0) break;
+
+      double abonarAlTicket = 0;
+      if (abonoRestante >= t.saldoRestante) {
+        abonarAlTicket = t.saldoRestante;
+        abonoRestante -= t.saldoRestante;
+      } else {
+        abonarAlTicket = abonoRestante;
+        abonoRestante = 0;
+      }
+
+      t.totalAbonado += abonarAlTicket;
+      
+      if (t.saldoRestante <= 0) {
+        t.estado = 'Pagado';
+        t.pagoRepartidorConfirmado = true;
+      }
+
+      batch.update(_ticketsCollection.doc(t.id), t.toMap());
+
+      // Reducir la deuda del cliente si aplica
+      if (abonarAlTicket > 0 && t.clienteId.isNotEmpty) {
+         batch.update(_clientesCollection.doc(t.clienteId), {
+           'deudaTotal': FieldValue.increment(-abonarAlTicket)
+         });
+
+         // Crear el registro del abono para el cliente para que aparezca en el estado de cuenta (PDF)
+         final abonoClienteId = _abonosCollection.doc().id;
+         final abonoCliente = Abono(
+           id: abonoClienteId,
+           clienteId: t.clienteId,
+           ticketId: t.id,
+           monto: abonarAlTicket,
+           repartidorId: repartidorNombre,
+           empresaId: empresaId,
+           createAt: Timestamp.now(),
+           fecha: Timestamp.now(),
+           createBy: 'Repartidor',
+         );
+         batch.set(_abonosCollection.doc(abonoClienteId), abonoCliente.toMap());
+      }
+    }
+    
+    // Crear el registro del abono en el historial para auditoría
+    final abonoId = _abonosCollection.doc().id;
+    final abono = Abono(
+      id: abonoId,
+      clienteId: '', // No asociado a un solo cliente
+      ticketId: 'ENTREGA_REPARTIDOR', // Esto es solo un log, no se suma doble en caja
+      monto: monto,
+      repartidorId: repartidorNombre,
+      empresaId: empresaId,
+      createAt: Timestamp.now(),
+      fecha: Timestamp.now(),
+      createBy: 'Sistema',
+    );
+    batch.set(_abonosCollection.doc(abonoId), abono.toMap());
+    
+    // Si sobró dinero que no pudo asignarse a un ticket, lo dejamos flotando como abono general
+    if (abonoRestante > 0) {
+      final abonoSobranteId = _abonosCollection.doc().id;
+      final abonoSobrante = Abono(
+        id: abonoSobranteId,
+        clienteId: '',
+        ticketId: 'ENTREGA_GENERAL',
+        monto: abonoRestante,
+        repartidorId: repartidorNombre,
+        empresaId: empresaId,
+        createAt: Timestamp.now(),
+        fecha: Timestamp.now(),
+        createBy: 'Sistema',
+      );
+      batch.set(_abonosCollection.doc(abonoSobranteId), abonoSobrante.toMap());
+    }
+    
+    try {
+      await batch.commit().timeout(const Duration(seconds: 5));
+    } catch (e) {
+      throw Exception('No se pudo procesar la entrega: $e');
+    }
+  }
+
   /// Trae todos los tickets en un rango de fechas
   Stream<List<Ticket>> getTicketsByDateRange(DateTime start, DateTime end) {
     return _ticketsCollection
@@ -835,6 +1004,37 @@ class FirebaseService {
           .where((a) {
             if (a.fecha == null) return false;
             final date = a.fecha!.toDate();
+            return date.isAfter(start.subtract(const Duration(seconds: 1))) && date.isBefore(end.add(const Duration(seconds: 1)));
+          })
+          .toList();
+      list.sort((a, b) => (b.fecha ?? Timestamp.now()).compareTo(a.fecha ?? Timestamp.now()));
+      return list;
+    });
+  }
+
+  // =========================================================================
+  // GASTOS / EGRESOS
+  // =========================================================================
+
+  Future<void> registrarGasto(String concepto, double monto) async {
+    final gasto = Gasto(
+      empresaId: empresaId,
+      concepto: concepto,
+      monto: monto,
+      createBy: 'Cajero',
+    );
+    await _gastosCollection.add(gasto.toMap());
+  }
+
+  Stream<List<Gasto>> getGastosByDateRange(DateTime start, DateTime end) {
+    return _gastosCollection
+        .where('empresaId', isEqualTo: empresaId)
+        .snapshots(includeMetadataChanges: true)
+        .map((snapshot) {
+      final list = snapshot.docs.map((doc) => Gasto.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+          .where((g) {
+            if (g.fecha == null) return false;
+            final date = g.fecha!.toDate();
             return date.isAfter(start.subtract(const Duration(seconds: 1))) && date.isBefore(end.add(const Duration(seconds: 1)));
           })
           .toList();
@@ -977,5 +1177,27 @@ class FirebaseService {
           })
           .toList();
     });
+  }
+
+  /// Obtiene todos los tickets que tienen deuda (usado para el Reporte de Deudores)
+  Future<List<Ticket>> getAllTicketsConDeudaFuture() async {
+    final snapshot = await _ticketsCollection
+        .where('empresaId', isEqualTo: empresaId)
+        .where('estado', isEqualTo: 'Con Deuda')
+        .get();
+    return snapshot.docs
+        .map((doc) => Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+        .where((t) => t.saldoRestante > 0)
+        .toList();
+  }
+
+  /// Obtiene todos los abonos para cruzar información en el Reporte de Deudores
+  Future<List<Abono>> getAllAbonosFuture() async {
+    final snapshot = await _abonosCollection
+        .where('empresaId', isEqualTo: empresaId)
+        .get();
+    return snapshot.docs
+        .map((doc) => Abono.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+        .toList();
   }
 }

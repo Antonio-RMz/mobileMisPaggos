@@ -99,6 +99,7 @@ class Ticket {
   bool pagoRepartidorConfirmado;
   String metodoPago; // 'Efectivo', 'Transferencia'
   String? cobradoPor; // Quien recibió el dinero
+  bool deudaManualAsignada; // Indica si la deuda ya fue transferida manualmente al cliente
 
   String createBy;
   Timestamp? createAt;
@@ -124,6 +125,7 @@ class Ticket {
     this.pagoRepartidorConfirmado = false,
     this.metodoPago = 'Efectivo',
     this.cobradoPor,
+    this.deudaManualAsignada = false,
     this.createBy = 'Sistema',
     this.createAt,
     this.updateBy = 'Sistema',
@@ -155,6 +157,7 @@ class Ticket {
       pagoRepartidorConfirmado: data['pagoRepartidorConfirmado'] ?? false,
       metodoPago: data['metodoPago'] ?? 'Efectivo',
       cobradoPor: data['cobradoPor'],
+      deudaManualAsignada: data['deudaManualAsignada'] ?? false,
       createBy: data['createBy'] ?? '',
       createAt: data['createAt'],
       updateBy: data['updateBy'] ?? '',
@@ -182,6 +185,7 @@ class Ticket {
       'pagoRepartidorConfirmado': pagoRepartidorConfirmado,
       'metodoPago': metodoPago,
       'cobradoPor': cobradoPor,
+      'deudaManualAsignada': deudaManualAsignada,
       'createBy': createBy,
       'createAt': createAt,
       'updateBy': updateBy,

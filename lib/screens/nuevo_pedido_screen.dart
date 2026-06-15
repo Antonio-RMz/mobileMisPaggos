@@ -431,15 +431,22 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
         ? '${_currentCliente.nombre} ${_currentCliente.apPaterno}'.trim() 
         : 'Público en General';
 
+    final bool hasCarniceria = cart.items.any((i) => i.producto.seccion == 'carniceria');
+    final bool hasCatalogo = cart.items.any((i) => i.producto.seccion != 'carniceria' && i.producto.seccion != 'general');
+    final bool isCarniceria = hasCarniceria && !hasCatalogo;
+
+    final TextEditingController abonoCtrl = TextEditingController();
+    bool esCredito = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
+      builder: (modalContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (modalContext, setModalState) {
             final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
             return Padding(
@@ -447,10 +454,11 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                 top: 24, left: 24, right: 24,
                 bottom: bottomInset > 0 ? bottomInset + 24 : 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   const Text('Confirmar Pedido', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
                   const SizedBox(height: 16),
                   
@@ -565,6 +573,42 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                       );
                     },
                   ),
+                  if (repartidorId == 'SUCURSAL') ...[
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8.0,
+                      runSpacing: 8.0,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text('Tipo de Pago:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Completo (Contado)'),
+                          selected: !esCredito,
+                          onSelected: (val) => setModalState(() => esCredito = false),
+                          selectedColor: AppTheme.primary.withOpacity(0.2),
+                        ),
+                        ChoiceChip(
+                          label: const Text('A Crédito / Abono'),
+                          selected: esCredito,
+                          onSelected: (val) => setModalState(() => esCredito = true),
+                          selectedColor: AppTheme.primary.withOpacity(0.2),
+                        ),
+                      ],
+                    ),
+                    if (esCredito) ...[
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: abonoCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Abono Inicial (\$)',
+                          prefixText: '\$ ',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ]
+                  ],
                   const SizedBox(height: 30),
 
                   ElevatedButton(
@@ -579,7 +623,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                       }
 
                       final bool? confirm = await showDialog<bool>(
-                        context: context,
+                        context: modalContext,
                         builder: (ctx) => AlertDialog(
                           title: const Text('Confirmar Pedido'),
                           content: const Text('¿Estás seguro de confirmar y guardar este pedido?'),
@@ -592,11 +636,32 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
 
                       if (confirm != true) return;
 
-                      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                      showDialog(context: modalContext, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
 
                       try {
                         final userName = Provider.of<UserProvider>(context, listen: false).nombre;
                         
+                        double abonoIngresado = 0.0;
+                        String estadoPedido = 'Con Deuda';
+
+                        if (repartidorId == 'SUCURSAL') {
+                          if (!esCredito) {
+                            abonoIngresado = totalVenta;
+                            estadoPedido = 'Pagado';
+                          } else {
+                            abonoIngresado = double.tryParse(abonoCtrl.text) ?? 0.0;
+                            if (abonoIngresado >= totalVenta) {
+                              abonoIngresado = totalVenta;
+                              estadoPedido = 'Pagado';
+                            } else {
+                              estadoPedido = 'Con Deuda';
+                            }
+                          }
+                        } else {
+                          abonoIngresado = 0.0;
+                          estadoPedido = 'Pendiente';
+                        }
+
                         final ticket = Ticket(
                           clienteId: _currentCliente.id != '' ? _currentCliente.id : 'GNR001',
                           clienteNombre: clienteNombreFinal,
@@ -617,16 +682,16 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                             );
                           }).toList(),
                           totalVenta: totalVenta,
-                          totalAbonado: 0.0,
-                          estado: 'Con Deuda',
+                          totalAbonado: abonoIngresado,
+                          estado: estadoPedido,
                           createBy: userName,
                         );
                         
                         await _firebaseService.procesarVenta(ticket);
 
                         if (mounted) {
-                          Navigator.pop(context); // Cierra loading
-                          Navigator.pop(context); // Cierra modal
+                          Navigator.of(modalContext, rootNavigator: true).pop(); // Cierra loading
+                          Navigator.pop(modalContext); // Cierra modal
                           cart.clearCart();
                           
                           Navigator.pushReplacement(
@@ -634,14 +699,14 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                             MaterialPageRoute(
                               builder: (context) => PaymentSuccessScreen(
                                 ticket: ticket,
-                                abonado: 0.0,
+                                abonado: abonoIngresado,
                               ),
                             ),
                           );
                         }
                       } catch (e) {
                         if (mounted) {
-                          Navigator.pop(context); // Cierra loading
+                          Navigator.of(modalContext, rootNavigator: true).pop(); // Cierra loading
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                           );
@@ -652,6 +717,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                   ),
                 ],
               ),
+            ),
             );
           },
         );
@@ -664,9 +730,9 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (modalContext) {
         return Consumer<CartProvider>(
-          builder: (context, cartConsumer, child) {
+          builder: (modalContext, cartConsumer, child) {
             return Container(
               height: MediaQuery.of(context).size.height * 0.75,
               decoration: const BoxDecoration(
@@ -695,7 +761,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                       icon: const Icon(Icons.delete_sweep, color: AppTheme.error),
                       onPressed: () {
                         cart.clearCart();
-                        Navigator.pop(context);
+                        Navigator.pop(modalContext);
                       },
                       tooltip: 'Vaciar carrito',
                     ),
@@ -761,7 +827,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                                           TextButton.icon(
                                             style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
                                             onPressed: () {
-                                              Navigator.pop(context);
+                                              Navigator.pop(modalContext);
                                               _mostrarDialogoConfiguracionProducto(context, cart, item.producto, itemActual: item);
                                             },
                                             icon: const Icon(Icons.scale, size: 16, color: AppTheme.primary),
@@ -773,7 +839,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                                             icon: const Icon(Icons.delete_outline, color: AppTheme.error),
                                             onPressed: () {
                                               cart.removeItem(item.id);
-                                              if (cart.items.isEmpty) Navigator.pop(context);
+                                              if (cart.items.isEmpty) Navigator.pop(modalContext);
                                             },
                                           ),
                                         ]
@@ -822,7 +888,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: cart.items.isEmpty ? null : () {
-                          Navigator.pop(context);
+                          Navigator.pop(modalContext);
                           _mostrarDialogoCobro(context, cart);
                         },
                         icon: const Icon(Icons.arrow_forward, color: Colors.white),
@@ -917,6 +983,18 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
                 onTap: () {
+                  final bool hasCarniceria = cart.items.any((i) => i.producto.seccion == 'carniceria');
+                  final bool hasCatalogo = cart.items.any((i) => i.producto.seccion != 'carniceria' && i.producto.seccion != 'general');
+                  
+                  if (p.seccion == 'carniceria' && hasCatalogo) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No puedes mezclar productos de catálogo y carnicería en el mismo pedido.'), backgroundColor: Colors.red));
+                    return;
+                  }
+                  if (p.seccion != 'carniceria' && p.seccion != 'general' && hasCarniceria) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No puedes mezclar productos de carnicería y catálogo en el mismo pedido.'), backgroundColor: Colors.red));
+                    return;
+                  }
+
                   final bool usaFracciones = p.unidadVenta != 'pieza' && p.unidadVenta != 'paquete';
                   
                   if (usaFracciones || isCarniceria) {

@@ -10,6 +10,7 @@ import 'cliente_form_modal.dart';
 import 'nuevo_pedido_screen.dart';
 import 'cliente_profile_screen.dart';
 import 'package:intl/intl.dart';
+import '../config/environment.dart';
 
 class ClienteListScreen extends StatefulWidget {
   final bool isSelectingForOrder;
@@ -99,18 +100,7 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
                 decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
               ),
               const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(LucideIcons.wallet, color: Colors.green),
-                title: const Text('Nuevo Pedido', style: TextStyle(fontWeight: FontWeight.bold)),
-                onTap: () {
-                  Navigator.pop(context); // Cierra modal
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => NuevoPedidoScreen(cliente: cliente)),
-                  );
-                },
-              ),
-              const Divider(),
+
               ListTile(
                 leading: const Icon(LucideIcons.eye, color: AppTheme.accent),
                 title: const Text('Consultar Detalles (Cobranza)'),
@@ -237,7 +227,7 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
       drawer: const AppDrawer(),
       appBar: AppBar(
         // Al quitar 'leading', Flutter automáticamente pondrá el botón del Drawer.
-        title: Text(widget.isSelectingForOrder ? 'Selecciona un Cliente' : 'MisPaggos'),
+        title: Text(widget.isSelectingForOrder ? 'Selecciona un Cliente' : (Environment.isDev ? 'MisPaggosDev' : 'MisPaggos')),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -437,7 +427,7 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
           } else {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => ClienteProfileScreen(cliente: cliente)),
+              MaterialPageRoute(builder: (context) => NuevoPedidoScreen(cliente: cliente)),
             );
           }
         },

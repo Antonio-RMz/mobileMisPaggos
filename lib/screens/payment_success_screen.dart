@@ -53,11 +53,9 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> with Single
     final esSoloCarniceria = productosCarniceria.isNotEmpty && productosCatalogo.isEmpty;
     final tieneRepartidor = widget.ticket.tipoEntrega == 'Domicilio' && widget.ticket.repartidorNombre != null;
 
-    sb.writeln('Cliente: ${widget.ticket.clienteNombre}');
-    
     if (esSoloCarniceria && tieneRepartidor) {
+      sb.writeln('Hola, confirmamos el pago de tu pedido ${widget.ticket.folio} por ${_currencyFormat.format(widget.ticket.totalVenta)}.\n');
       sb.writeln('Repartidor: ${widget.ticket.repartidorNombre}');
-      sb.writeln('Total: ${_currencyFormat.format(widget.ticket.totalVenta)}');
       
       sb.writeln('\n*Productos:*');
       for (var p in productosCarniceria) {
@@ -266,7 +264,7 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> with Single
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () {
-                      Navigator.pop(context); // Cerrar success screen
+                      Navigator.popUntil(context, (route) => route.isFirst); // Cerrar success screen y regresar al main
                     },
                     child: const Text(
                       'Volver al Directorio',

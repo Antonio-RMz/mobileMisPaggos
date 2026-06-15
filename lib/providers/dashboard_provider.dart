@@ -21,6 +21,9 @@ class DashboardProvider with ChangeNotifier {
   int _entregasEnReparto = 0;
   int _entregasEnviadas = 0;
   int _entregasCanceladas = 0;
+  int _ventasHoyCount = 0;
+  List<Ticket> _ticketsDeudaHoy = [];
+  Map<String, double> _ventasPorDiaSemana = {};
   bool _isLoading = false;
 
   double get totalPorCobrar => _totalPorCobrar;
@@ -32,6 +35,9 @@ class DashboardProvider with ChangeNotifier {
   int get entregasEnReparto => _entregasEnReparto;
   int get entregasEnviadas => _entregasEnviadas;
   int get entregasCanceladas => _entregasCanceladas;
+  int get ventasHoyCount => _ventasHoyCount;
+  List<Ticket> get ticketsDeudaHoy => _ticketsDeudaHoy;
+  Map<String, double> get ventasPorDiaSemana => _ventasPorDiaSemana;
   bool get isLoading => _isLoading;
 
   Future<void> cargarMetricas() async {
@@ -42,10 +48,18 @@ class DashboardProvider with ChangeNotifier {
       final empresaId = _userProvider?.empresaId ?? '';
 
       // 1. Cuentas por cobrar (sumando deudas > 0)
-      final clientesSnapshot = await _firestore
-          .collection('clientes')
-          .where('empresaId', isEqualTo: empresaId)
-          .get();
+      QuerySnapshot<Map<String, dynamic>> clientesSnapshot;
+      try {
+        clientesSnapshot = await _firestore
+            .collection('clientes')
+            .where('empresaId', isEqualTo: empresaId)
+            .get(const GetOptions(source: Source.serverAndCache));
+      } catch (e) {
+        clientesSnapshot = await _firestore
+            .collection('clientes')
+            .where('empresaId', isEqualTo: empresaId)
+            .get(const GetOptions(source: Source.cache));
+      }
 
       double totalDeuda = 0.0;
       List<Cliente> clientesMorosos = [];
@@ -58,27 +72,45 @@ class DashboardProvider with ChangeNotifier {
         }
       }
       
-      _totalPorCobrar = totalDeuda;
+      // No usamos la suma de clientes para totalPorCobrar, lo calcularemos con los tickets de hoy
+      // _totalPorCobrar = totalDeuda;
 
       // Ordenar por deuda descendente (todos los morosos)
       clientesMorosos.sort((a, b) => b.deudaTotal.compareTo(a.deudaTotal));
       _topMorosos = clientesMorosos;
 
-      // 2. Ventas del Mes
+      // 2. Ventas de la Semana y Deuda de Hoy
       final ahora = DateTime.now();
-      final inicioMes = DateTime(ahora.year, ahora.month, 1);
-      final finMes = DateTime(ahora.year, ahora.month + 1, 0, 23, 59, 59);
+      final int diasRestar = ahora.weekday - 1;
+      final inicioSemana = DateTime(ahora.year, ahora.month, ahora.day).subtract(Duration(days: diasRestar));
+      final finSemana = inicioSemana.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
 
-      final ticketsSnapshot = await _firestore
-          .collection('tickets')
-          .where('empresaId', isEqualTo: empresaId)
-          .get();
+      QuerySnapshot<Map<String, dynamic>> ticketsSnapshot;
+      try {
+        ticketsSnapshot = await _firestore
+            .collection('tickets')
+            .where('empresaId', isEqualTo: empresaId)
+            .get(const GetOptions(source: Source.serverAndCache));
+      } catch (e) {
+        ticketsSnapshot = await _firestore
+            .collection('tickets')
+            .where('empresaId', isEqualTo: empresaId)
+            .get(const GetOptions(source: Source.cache));
+      }
 
       // Obtener todos los productos para saber su sección
-      final productosSnapshot = await _firestore
-          .collection('productos')
-          .where('empresaId', isEqualTo: empresaId)
-          .get();
+      QuerySnapshot<Map<String, dynamic>> productosSnapshot;
+      try {
+        productosSnapshot = await _firestore
+            .collection('productos')
+            .where('empresaId', isEqualTo: empresaId)
+            .get(const GetOptions(source: Source.serverAndCache));
+      } catch (e) {
+        productosSnapshot = await _firestore
+            .collection('productos')
+            .where('empresaId', isEqualTo: empresaId)
+            .get(const GetOptions(source: Source.cache));
+      }
       Map<String, String> productoSeccion = {};
       Map<String, String> productoNombre = {};
       for (var doc in productosSnapshot.docs) {
@@ -91,29 +123,61 @@ class DashboardProvider with ChangeNotifier {
       double totalVentasHoy = 0.0;
       Map<String, double> contCarnes = {};
       Map<String, double> contCatalogo = {};
+      Map<String, double> ventasPorDia = {
+        'Lunes': 0.0, 'Martes': 0.0, 'Miércoles': 0.0, 
+        'Jueves': 0.0, 'Viernes': 0.0, 'Sábado': 0.0, 'Domingo': 0.0,
+      };
 
       int enReparto = 0;
       int enviadas = 0;
       int canceladas = 0;
+      int ventasHoyCount = 0;
+
+      double totalDeudaHoy = 0.0;
+      List<Ticket> ticketsDeudaHoyList = [];
 
       for (var doc in ticketsSnapshot.docs) {
         final ticket = Ticket.fromMap(doc.id, doc.data());
         
-        // Determinar si el ticket es del mes actual
-        final bool esDelMes = ticket.fecha != null && 
-            ticket.fecha!.toDate().isAfter(inicioMes.subtract(const Duration(seconds: 1))) && 
-            ticket.fecha!.toDate().isBefore(finMes.add(const Duration(seconds: 1)));
+        // Determinar si el ticket es de la semana actual
+        final bool esDeLaSemana = ticket.fecha != null && 
+            ticket.fecha!.toDate().isAfter(inicioSemana.subtract(const Duration(seconds: 1))) && 
+            ticket.fecha!.toDate().isBefore(finSemana.add(const Duration(seconds: 1)));
 
-        if (!esDelMes) continue;
-
-        totalVentasMes += ticket.totalVenta;
-
-        // Conteo de estado de entregas del mes o del día? El cliente pide estado actual.
-        // Contemos los del día de hoy para que sea relevante en el dashboard
+        // Determinar si es de hoy
         final bool esDeHoy = ticket.fecha != null && ticket.fecha!.toDate().day == ahora.day && ticket.fecha!.toDate().month == ahora.month && ticket.fecha!.toDate().year == ahora.year;
 
+        if (esDeLaSemana && ticket.estadoEntrega != 'Cancelado') {
+          totalVentasMes += ticket.totalVenta; // usando misma variable, pero es de la semana
+          final date = ticket.fecha!.toDate();
+          String dayName = '';
+          switch (date.weekday) {
+            case 1: dayName = 'Lunes'; break;
+            case 2: dayName = 'Martes'; break;
+            case 3: dayName = 'Miércoles'; break;
+            case 4: dayName = 'Jueves'; break;
+            case 5: dayName = 'Viernes'; break;
+            case 6: dayName = 'Sábado'; break;
+            case 7: dayName = 'Domingo'; break;
+          }
+          if (dayName.isNotEmpty) {
+            ventasPorDia[dayName] = (ventasPorDia[dayName] ?? 0) + ticket.totalVenta;
+          }
+        }
+
         if (esDeHoy) {
-          totalVentasHoy += ticket.totalVenta;
+          if (ticket.estadoEntrega != 'Cancelado') {
+            totalVentasHoy += ticket.totalVenta;
+            ventasHoyCount++;
+          }
+          // Deuda generada hoy
+          if (ticket.estado != 'Pagado' && ticket.estadoEntrega != 'Cancelado') {
+            double saldoRestante = ticket.totalVenta - ticket.totalAbonado;
+            if (saldoRestante > 0) {
+              totalDeudaHoy += saldoRestante;
+              ticketsDeudaHoyList.add(ticket);
+            }
+          }
           if (ticket.tipoEntrega == 'Domicilio') {
             if (ticket.estadoEntrega == 'Cancelado') {
               canceladas++;
@@ -123,33 +187,36 @@ class DashboardProvider with ChangeNotifier {
               enReparto++;
             }
           }
-        }
-
-        // Productos vendidos
-        for (var item in ticket.productos) {
-          final seccion = productoSeccion[item.productoId] ?? 'catalogo';
-          final nombre = productoNombre[item.productoId] ?? item.nombre;
-          
-          if (seccion == 'carniceria') {
-            contCarnes[nombre] = (contCarnes[nombre] ?? 0.0) + item.cantidad;
-          } else {
-            contCatalogo[nombre] = (contCatalogo[nombre] ?? 0.0) + item.cantidad;
+          // Productos vendidos hoy
+          for (var item in ticket.productos) {
+            final seccion = productoSeccion[item.productoId] ?? 'catalogo';
+            final nombre = productoNombre[item.productoId] ?? item.nombre;
+            
+            if (seccion == 'carniceria') {
+              contCarnes[nombre] = (contCarnes[nombre] ?? 0.0) + item.cantidad;
+            } else {
+              contCatalogo[nombre] = (contCatalogo[nombre] ?? 0.0) + item.cantidad;
+            }
           }
         }
       }
 
       _ventasDelMes = totalVentasMes;
       _ventasDeHoy = totalVentasHoy;
+      _totalPorCobrar = totalDeudaHoy;
       _entregasEnReparto = enReparto;
       _entregasEnviadas = enviadas;
       _entregasCanceladas = canceladas;
+      _ventasHoyCount = ventasHoyCount;
+      _ticketsDeudaHoy = ticketsDeudaHoyList;
+      _ventasPorDiaSemana = ventasPorDia;
 
-      // Ordenar productos y tomar top 5
+      // Ordenar productos y tomar top 3
       var listCarnes = contCarnes.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      _topProductosCarnes = Map.fromEntries(listCarnes.take(5));
+      _topProductosCarnes = Map.fromEntries(listCarnes.take(3));
 
       var listCatalogo = contCatalogo.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-      _topProductosCatalogo = Map.fromEntries(listCatalogo.take(5));
+      _topProductosCatalogo = Map.fromEntries(listCatalogo.take(3));
 
     } catch (e) {
       debugPrint('Error cargando métricas: $e');

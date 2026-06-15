@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
 import 'main_screen.dart';
+import '../config/environment.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -206,17 +207,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 5),
                     RichText(
-                      text: const TextSpan(
+                      text: TextSpan(
                         text: 'Bienvenido a ',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 28,
                           color: AppTheme.textDark,
                           fontWeight: FontWeight.w800,
                         ),
                         children: [
                           TextSpan(
-                            text: 'MisPaggos',
-                            style: TextStyle(
+                            text: Environment.isDev ? 'MisPaggosDev' : 'MisPaggos',
+                            style: const TextStyle(
                               color: AppTheme.turquoise,
                               fontWeight: FontWeight.w900,
                             ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'config/environment.dart';
 import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
 import 'providers/cart_provider.dart';
@@ -31,7 +32,7 @@ class GestionClientesApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PrinterProvider()),
       ],
       child: MaterialApp(
-        title: 'MisPaggos',
+        title: Environment.isDev ? 'MisPaggosDev' : 'MisPaggos',
         debugShowCheckedModeBanner: false,
         // Se inyecta el tema global definido en app_theme.dart con las reglas de color
         theme: AppTheme.lightTheme,

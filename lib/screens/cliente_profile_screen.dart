@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/cliente_model.dart';
 import '../models/ticket_model.dart';
 import '../services/firebase_service.dart';
@@ -23,6 +24,40 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
 
   // _abrirWhatsApp se movió a GeneralSuccessScreen
+
+  Future<void> _enviarWhatsAppTicket(Ticket t) async {
+    String cel = widget.cliente.celular.replaceAll(RegExp(r'\D'), '');
+    if (cel.isEmpty) {
+      OverlayHelper.showError(context, message: 'El cliente no tiene un número de celular registrado.');
+      return;
+    }
+    
+    // Si es México, a veces se requiere 52
+    if (cel.length == 10) cel = '52$cel';
+
+    String mensaje = 'Hola ${widget.cliente.nombre},\n\n';
+    mensaje += 'Aquí tienes el detalle de tu nota de remisión / pedido:\n\n';
+    mensaje += 'Folio: ${t.folio}\n';
+    if (t.fecha != null) {
+      mensaje += 'Fecha: ${DateFormat('dd/MM/yyyy').format(t.fecha!.toDate())}\n';
+    }
+    mensaje += 'Total: ${_currencyFormat.format(t.totalVenta)}\n';
+    mensaje += 'Abonado: ${_currencyFormat.format(t.totalAbonado)}\n';
+    mensaje += 'Restante: ${_currencyFormat.format(t.saldoRestante)}\n\n';
+    mensaje += 'Productos:\n';
+    for (var p in t.productos) {
+      mensaje += '- ${p.descripcionAmigable}\n';
+    }
+    
+    final uri = Uri.parse('https://wa.me/$cel?text=${Uri.encodeComponent(mensaje)}');
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        if (mounted) OverlayHelper.showError(context, message: 'No se pudo abrir WhatsApp');
+      }
+    } catch (e) {
+      if (mounted) OverlayHelper.showError(context, message: 'Error al abrir WhatsApp: $e');
+    }
+  }
 
   void _mostrarDialogoAbonoGeneral() {
     if (widget.cliente.deudaTotal <= 0) return;
@@ -135,8 +170,8 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                         });
 
                         if (mounted) {
-                          Navigator.pop(context); // Cierra loading
-                          final msj = 'Hola ${widget.cliente.nombre}, confirmamos tu abono general por ${_currencyFormat.format(abonoFinal)}. Tu nuevo saldo es ${_currencyFormat.format(widget.cliente.deudaTotal)}.\n¡Muchas gracias por tu preferencia!';
+                          Navigator.of(context, rootNavigator: true).pop(); // Cierra loading
+                          final msj = 'Confirmamos tu abono general por ${_currencyFormat.format(abonoFinal)}. Tu nuevo saldo es ${_currencyFormat.format(widget.cliente.deudaTotal)}.\n¡Muchas gracias por tu preferencia!';
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
@@ -152,7 +187,7 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                         }
                       } catch (e) {
                         if (mounted) {
-                          Navigator.pop(context); // Cierra loading
+                          Navigator.of(context, rootNavigator: true).pop(); // Cierra loading
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                           );
@@ -272,9 +307,11 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                         });
 
                         if (mounted) {
-                          Navigator.pop(context); // loading
-                          final msj = 'Hola ${widget.cliente.nombre}, confirmamos tu pago por ${_currencyFormat.format(abonoFinal)} a tu ticket.\n¡Muchas gracias por tu preferencia!';
-                          Navigator.pushReplacement(
+                          Navigator.of(context, rootNavigator: true).pop(); // loading
+                          Navigator.pop(context); // cerrar bottom sheet de abono
+                          
+                          final msj = 'Confirmamos tu abono por ${_currencyFormat.format(abonoFinal)}. El saldo restante del pedido ${ticket.folio} es ${_currencyFormat.format(ticket.saldoRestante - abonoFinal)}.\n¡Muchas gracias por tu preferencia!';
+                          Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => GeneralSuccessScreen(
@@ -289,7 +326,7 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                         }
                       } catch (e) {
                         if (mounted) {
-                          Navigator.pop(context);
+                          Navigator.of(context, rootNavigator: true).pop();
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
                         }
                       }
@@ -307,6 +344,7 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
 
   Future<void> _mostrarDialogoCancelacion(Ticket ticket) async {
     final TextEditingController motivoCtrl = TextEditingController();
+    final TextEditingController pinCtrl = TextEditingController();
 
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -327,6 +365,13 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                 ),
                 maxLines: 2,
               ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: pinCtrl,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'PIN de autorización', border: OutlineInputBorder()),
+              ),
             ],
           ),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -342,6 +387,10 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, escribe un motivo de cancelación.'), backgroundColor: Colors.orange));
                   return;
                 }
+                if (pinCtrl.text != '1234') {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN incorrecto'), backgroundColor: AppTheme.error));
+                  return;
+                }
                 Navigator.pop(context, true);
               },
               child: const Text('Cancelar Pedido', style: TextStyle(color: Colors.white)),
@@ -352,7 +401,8 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
     );
 
     if (confirm == true) {
-      if (mounted) showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+      final safeContext = this.context;
+      if (safeContext.mounted) showDialog(context: safeContext, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
       
       try {
         await _firebaseService.cancelarPedido(ticket, motivoCtrl.text.trim());
@@ -361,14 +411,14 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
           widget.cliente.deudaTotal -= ticket.saldoRestante;
         });
 
-        if (mounted) {
-          Navigator.pop(context); // Cierra loading
-          OverlayHelper.showSuccess(context, message: 'Pedido Cancelado Exitosamente');
+        if (safeContext.mounted) {
+          Navigator.of(safeContext, rootNavigator: true).pop(); // Cierra loading
+          OverlayHelper.showSuccess(safeContext, message: 'Pedido Cancelado Exitosamente');
         }
       } catch (e) {
-        if (mounted) {
-          Navigator.pop(context); // Cierra loading
-          OverlayHelper.showError(context, message: 'Error: $e');
+        if (safeContext.mounted) {
+          Navigator.of(safeContext, rootNavigator: true).pop(); // Cierra loading
+          OverlayHelper.showError(safeContext, message: 'Error: $e');
         }
       }
     }
@@ -381,19 +431,23 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
       appBar: AppBar(
         title: const Text('Perfil del Cliente', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf, color: AppTheme.primary),
-            tooltip: 'Generar Estado de Cuenta',
-            onPressed: () async {
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: TextButton.icon(
+              icon: const Icon(Icons.picture_as_pdf, color: AppTheme.primary, size: 20),
+              label: const Text('Estado de Cuenta', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+              onPressed: () async {
               showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
               try {
                 final tickets = await _firebaseService.getTicketsByCliente(widget.cliente.id).first;
                 final abonos = await _firebaseService.getAbonosByCliente(widget.cliente.id).first;
-                if (context.mounted) Navigator.pop(context);
-                await PdfService.imprimirEstadoCuenta(widget.cliente, tickets, abonos);
+                if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+                if (context.mounted) {
+                  await PdfService.imprimirEstadoCuenta(context, widget.cliente, tickets, abonos);
+                }
               } catch (e) {
                 if (context.mounted) {
-                  Navigator.pop(context);
+                  Navigator.of(context, rootNavigator: true).pop();
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                 }
               }
@@ -622,13 +676,13 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                                         onPressed: () => _mostrarDialogoCancelacion(t),
                                         style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.error)),
                                       ),
-                                    OutlinedButton.icon(
-                                      icon: const Icon(Icons.share, size: 16, color: AppTheme.primary),
-                                      label: const Text('PDF', style: TextStyle(color: AppTheme.primary)),
-                                      onPressed: () {
-                                        PdfService.imprimirTicket(t);
-                                      },
-                                    ),
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.share, size: 16, color: Colors.green),
+                                        label: const Text('WhatsApp', style: TextStyle(color: Colors.green)),
+                                        onPressed: () {
+                                          _enviarWhatsAppTicket(t);
+                                        },
+                                      ),
                                   ],
                                 ),
                               ],
@@ -643,20 +697,6 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => NuevoPedidoScreen(cliente: widget.cliente),
-            ),
-          );
-        },
-        icon: const Icon(Icons.add_shopping_cart),
-        label: const Text('Nueva Venta', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: AppTheme.accent,
-        foregroundColor: Colors.white,
       ),
     );
   }

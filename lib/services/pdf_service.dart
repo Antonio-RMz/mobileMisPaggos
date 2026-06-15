@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:pdf/pdf.dart';
@@ -127,12 +128,12 @@ class PdfService {
   }
 
   /// Genera un Estado de Cuenta (Formato A4)
-  static Future<void> imprimirEstadoCuenta(Cliente cliente, List<Ticket> tickets, List<Abono> abonos) async {
+  static Future<void> imprimirEstadoCuenta(BuildContext buildContext, Cliente cliente, List<Ticket> tickets, List<Abono> abonos) async {
     final pdf = pw.Document();
 
     pdf.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
+        pageFormat: PdfPageFormat.a4.landscape,
         margin: const pw.EdgeInsets.all(32),
         build: (pw.Context context) {
           return [
@@ -173,11 +174,12 @@ class PdfService {
                 borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
               ),
               child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                mainAxisAlignment: pw.MainAxisAlignment.start,
                 children: [
                   pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text('SALDO TOTAL A PAGAR', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
+                      pw.Text('SALDO TOTAL PENDIENTE', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
                       pw.SizedBox(height: 5),
                       pw.Text(currencyFormat.format(cliente.deudaTotal), style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.red700)),
                     ]
@@ -188,110 +190,139 @@ class PdfService {
             pw.SizedBox(height: 30),
 
             // Historial Detallado de Movimientos
-            pw.Text('HISTORIAL DE COMPRAS DETALLADO', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+            pw.Text('DETALLE DE DEUDAS Y PAGOS PENDIENTES', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
+            pw.SizedBox(height: 10),
             
-            // Renderizamos los movimientos iterativamente combinando tickets y abonos
             ...() {
-              // Combinar en una lista de movimientos y ordenarlos ascendentemente (del más viejo al más reciente)
-              final movimientos = <dynamic>[...tickets, ...abonos];
-              movimientos.sort((a, b) {
-                final dateA = (a.fecha?.toDate() ?? DateTime.now()) as DateTime;
-                final dateB = (b.fecha?.toDate() ?? DateTime.now()) as DateTime;
-                return dateB.compareTo(dateA); // Descendente: más recientes primero
-              });
+              // Filtrar solo las deudas (tickets con saldo restante mayor a 0, no cancelados)
+              final deudas = tickets.where((t) => (t.totalVenta - t.totalAbonado) > 0 && t.estado != 'Pagado' && t.estadoEntrega != 'Cancelado').toList();
+              
+              if (deudas.isEmpty) {
+                return [
+                  pw.SizedBox(height: 20),
+                  pw.Center(child: pw.Text('El cliente no presenta deudas pendientes.', style: const pw.TextStyle(fontSize: 12))),
+                ];
+              }
 
-              return movimientos.map((mov) {
-                if (mov is Ticket) {
-                  return pw.Container(
-                    margin: const pw.EdgeInsets.only(bottom: 15),
-                    padding: const pw.EdgeInsets.all(10),
-                    decoration: pw.BoxDecoration(
-                      color: PdfColors.blueGrey50,
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
-                      border: pw.Border.all(color: PdfColors.blueGrey200),
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('VENTA (Ticket: ${mov.folio}) | Fecha: ${dateFormat.format(mov.fecha?.toDate() ?? DateTime.now())}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11, color: PdfColors.blue800)),
-                            pw.Text(mov.estado, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11, color: mov.estado == 'Pagado' ? PdfColors.green700 : PdfColors.orange700)),
-                          ]
-                        ),
-                        pw.SizedBox(height: 8),
-                        ...mov.productos.map((p) => pw.Padding(
-                          padding: const pw.EdgeInsets.only(bottom: 4),
-                          child: pw.Row(
-                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Expanded(
-                                child: pw.Column(
-                                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                  children: [
-                                    pw.Text('- ${p.descripcionAmigable}', style: const pw.TextStyle(fontSize: 10)),
-                                    if (p.observaciones.isNotEmpty)
-                                      pw.Text(p.observaciones, style: pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
-                                  ]
-                                )
-                              ),
-                              pw.Text(currencyFormat.format(p.subtotal), style: const pw.TextStyle(fontSize: 10)),
-                            ]
-                          )
-                        )),
-                        pw.Divider(color: PdfColors.blueGrey200),
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('Total Venta: ${currencyFormat.format(mov.totalVenta)} | Abonado: ${currencyFormat.format(mov.totalAbonado)}', style: const pw.TextStyle(fontSize: 10)),
-                            pw.Text('SALDO TICKET: ${currencyFormat.format(mov.saldoRestante)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.red700)),
-                          ]
-                        ),
-                      ]
-                    )
-                  );
-                } else if (mov is Abono) {
-                  return pw.Container(
-                    margin: const pw.EdgeInsets.only(bottom: 15),
-                    padding: const pw.EdgeInsets.all(10),
-                    decoration: pw.BoxDecoration(
-                      color: PdfColors.green50,
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
-                      border: pw.Border.all(color: PdfColors.green200),
-                    ),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('ABONO | Fecha: ${dateFormat.format(mov.fecha?.toDate() ?? DateTime.now())}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11, color: PdfColors.green800)),
-                            pw.Text(mov.ticketId == null ? 'Abono General' : 'Abono a Ticket', style: pw.TextStyle(fontSize: 10, color: PdfColors.green700)),
-                          ]
-                        ),
-                        pw.SizedBox(height: 5),
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('Monto Abonado:', style: const pw.TextStyle(fontSize: 11)),
-                            pw.Text(currencyFormat.format(mov.monto), style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.green800)),
-                          ]
-                        ),
-                      ]
-                    )
-                  );
-                }
-                return pw.SizedBox();
-              }).toList();
+              // Build table data
+              final tableData = List<List<dynamic>>.generate(deudas.length, (index) {
+                final d = deudas[index];
+                final fecha = d.fecha != null ? dateFormatShort.format(d.fecha!.toDate()) : '-';
+                final productos = d.productos.map((p) => p.descripcionAmigable).join(', ');
+                
+                return [
+                  d.folio.isNotEmpty ? d.folio : 'S/F',
+                  fecha,
+                  productos,
+                  currencyFormat.format(d.totalVenta),
+                  currencyFormat.format(d.totalAbonado),
+                  currencyFormat.format(d.totalVenta - d.totalAbonado),
+                ];
+              });
+              
+              // Sumar total calculado
+              final totalDeudaCalc = deudas.fold(0.0, (sum, item) => sum + (item.totalVenta - item.totalAbonado));
+              tableData.add(['', '', '', '', 'TOTAL:', currencyFormat.format(totalDeudaCalc)]);
+
+              return [
+                pw.TableHelper.fromTextArray(
+                  headers: ['Folio', 'Fecha', 'Concepto (Productos)', 'Total Venta', 'Abonado', 'Saldo Pendiente'],
+                  data: tableData,
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 12),
+                  headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
+                  rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
+                  cellAlignment: pw.Alignment.centerLeft,
+                  cellAlignments: {
+                    0: pw.Alignment.centerLeft,
+                    1: pw.Alignment.centerLeft,
+                    2: pw.Alignment.centerLeft,
+                    3: pw.Alignment.centerRight,
+                    4: pw.Alignment.centerRight,
+                    5: pw.Alignment.centerRight,
+                  },
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(1.5),
+                    1: const pw.FlexColumnWidth(1.5),
+                    2: const pw.FlexColumnWidth(3.0),
+                    3: const pw.FlexColumnWidth(1.5),
+                    4: const pw.FlexColumnWidth(1.5),
+                    5: const pw.FlexColumnWidth(1.5),
+                  },
+                  cellStyle: const pw.TextStyle(fontSize: 11),
+                  headerPadding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                  cellPadding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                )
+              ];
             }(),
             
+            pw.SizedBox(height: 20),
+            pw.Text('HISTORIAL DE ABONOS RECIENTES', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+            pw.Divider(),
+            pw.SizedBox(height: 10),
+            
+            ...() {
+              if (abonos.isEmpty) {
+                return [
+                  pw.SizedBox(height: 10),
+                  pw.Center(child: pw.Text('El cliente no tiene abonos registrados.', style: const pw.TextStyle(fontSize: 12))),
+                ];
+              }
+              
+              final abonoData = List<List<dynamic>>.generate(abonos.length, (index) {
+                final a = abonos[index];
+                final fecha = a.createAt != null ? dateFormatShort.format(a.createAt!.toDate()) : '-';
+                String referencia = a.ticketId ?? 'Abono General';
+                if (a.ticketId != null && a.ticketId!.isNotEmpty) {
+                  try {
+                    final tRef = tickets.firstWhere((t) => t.id == a.ticketId);
+                    if (tRef.folio != null && tRef.folio!.isNotEmpty) {
+                      referencia = 'Folio: ${tRef.folio}';
+                    }
+                  } catch (e) {
+                    // ignore
+                  }
+                }
+                
+                return [
+                  fecha,
+                  currencyFormat.format(a.monto),
+                  referencia,
+                  a.createBy,
+                ];
+              });
+              
+              return [
+                pw.TableHelper.fromTextArray(
+                  headers: ['Fecha', 'Monto Abonado', 'Referencia', 'Cobrado Por'],
+                  data: abonoData,
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 11),
+                  headerDecoration: const pw.BoxDecoration(color: PdfColors.teal700),
+                  rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
+                  cellAlignment: pw.Alignment.centerLeft,
+                  cellAlignments: {
+                    0: pw.Alignment.centerLeft,
+                    1: pw.Alignment.centerRight,
+                    2: pw.Alignment.centerLeft,
+                    3: pw.Alignment.centerLeft,
+                  },
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(2),
+                    1: const pw.FlexColumnWidth(2),
+                    2: const pw.FlexColumnWidth(3),
+                    3: const pw.FlexColumnWidth(2),
+                  },
+                  cellStyle: const pw.TextStyle(fontSize: 10),
+                  headerPadding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  cellPadding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                )
+              ];
+            }(),
+
             pw.SizedBox(height: 40),
             pw.Center(
               child: pw.Text(
-                'Este documento es informativo y no representa un comprobante fiscal.',
+                'Este documento es informativo y muestra el saldo pendiente a la fecha.',
                 style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
               )
             ),
@@ -300,9 +331,31 @@ class PdfService {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'EstadoCuenta_${cliente.nombreCompleto}.pdf',
+    Navigator.push(
+      buildContext,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text('Estado de Cuenta')),
+          body: InteractiveViewer(
+            minScale: 1.0,
+            maxScale: 4.0,
+            child: PdfPreview(
+              build: (format) async {
+                try {
+                  return await pdf.save();
+                } catch (e, stack) {
+                  debugPrint('ERROR EN PDF ESTADO DE CUENTA: $e\n$stack');
+                  rethrow;
+                }
+              },
+              canChangeOrientation: false,
+              canChangePageFormat: false,
+              canDebug: false,
+              pdfFileName: 'EstadoCuenta_${cliente.nombreCompleto.replaceAll(' ', '_')}.pdf',
+            ),
+          ),
+        ),
+      ),
     );
   }
 

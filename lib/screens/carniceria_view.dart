@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/producto_model.dart';
 import '../services/firebase_service.dart';
+import '../utils/string_utils.dart';
 import '../theme/app_theme.dart';
 import 'carniceria_form_modal.dart';
 import 'package:intl/intl.dart';
@@ -239,7 +240,9 @@ class _CarniceriaViewState extends State<CarniceriaView> {
                 final todos = snapshot.data ?? [];
                 final productos = todos.where((p) {
                   final esCarniceria = p.seccion == 'carniceria';
-                  final matchBusqueda = p.nombre.toLowerCase().contains(_searchQuery);
+                  final queryNorm = StringUtils.removeDiacritics(_searchQuery.toLowerCase().trim());
+                  final nombreNorm = StringUtils.removeDiacritics(p.nombre.toLowerCase());
+                  final matchBusqueda = nombreNorm.contains(queryNorm);
                   final matchCategoria = _filtroCategoria == 'Todos' || p.categoria == _filtroCategoria;
                   return esCarniceria && matchBusqueda && matchCategoria;
                 }).toList();

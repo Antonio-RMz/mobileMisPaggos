@@ -5,14 +5,16 @@ import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import '../models/ticket_model.dart';
 import '../models/abono_model.dart';
+import '../models/gasto_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PdfReportService {
   static final _currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
   static final _dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
-  static Future<void> generateCorteGeneralPdf(BuildContext context, List<Ticket> tickets, List<Abono> abonos, String dateRangeLabel) async {
+  static Future<void> generateCorteGeneralPdf(BuildContext context, List<Ticket> tickets, List<Abono> abonos, List<Gasto> gastos, String dateRangeLabel) async {
     final pdf = pw.Document();
     
     // Cargar icono
@@ -59,7 +61,29 @@ class PdfReportService {
       }
     }
     
+    double totalGastos = 0;
+    for (var g in gastos) {
+      totalGastos += g.monto;
+    }
+
     totalEfectivo += totalAbonosExtra; // El efectivo total en caja aumenta con los abonos cobrados
+    totalEfectivo -= totalGastos; // Se descuentan los gastos del efectivo en caja
+
+    Map<String, Ticket> fetchedTickets = {};
+    for (var a in abonosExtra) {
+      if (a.ticketId != null && a.ticketId != 'ENTREGA_REPARTIDOR' && a.ticketId != 'ENTREGA_GENERAL') {
+        if (!fetchedTickets.containsKey(a.ticketId)) {
+          try {
+            final doc = await FirebaseFirestore.instance.collection('tickets').doc(a.ticketId).get();
+            if (doc.exists && doc.data() != null) {
+              fetchedTickets[a.ticketId!] = Ticket.fromMap(doc.id, doc.data()!);
+            }
+          } catch (e) {
+            // Ignorar error individual
+          }
+        }
+      }
+    }
 
     pdf.addPage(
       pw.MultiPage(
@@ -74,9 +98,10 @@ class PdfReportService {
             'Pendiente por Cobrar: ${_currencyFormat.format(pendiente)}',
             'Ventas en Sucursal: ${_currencyFormat.format(totalLocal)}',
             'Ventas a Domicilio: ${_currencyFormat.format(totalDomicilio)}',
-            'En Efectivo (Total): ${_currencyFormat.format(totalEfectivo)}',
             'En Transferencia: ${_currencyFormat.format(totalTransferencia)}',
-            'Extra: ${_currencyFormat.format(totalAbonosExtra)}',
+            'Abonos Anteriores: ${_currencyFormat.format(totalAbonosExtra)}',
+            'Gastos (Salidas): -${_currencyFormat.format(totalGastos)}',
+            'Efectivo Final en Caja: ${_currencyFormat.format(totalEfectivo)}',
             'Tickets Generados: $totalTickets',
           ]),
           pw.SizedBox(height: 20),
@@ -85,9 +110,15 @@ class PdfReportService {
           _buildTicketsTable(tickets),
           if (abonosExtra.isNotEmpty) ...[
             pw.SizedBox(height: 20),
-            pw.Text('Abonos Recibidos (Extra)', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
+            pw.Text('Abonos Recibidos (Anteriores)', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
             pw.SizedBox(height: 10),
-            _buildAbonosTable(abonosExtra),
+            _buildAbonosTable(abonosExtra, fetchedTickets: fetchedTickets),
+          ],
+          if (gastos.isNotEmpty) ...[
+            pw.SizedBox(height: 20),
+            pw.Text('Gastos Registrados (Salidas de Dinero)', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.red800)),
+            pw.SizedBox(height: 10),
+            _buildGastosTable(gastos),
           ]
         ],
       ),
@@ -166,6 +197,22 @@ class PdfReportService {
     // Ya no sumamos ni restamos entregasCaja de totalPendiente o totalEntregado, 
     // porque el ciclo de los tickets ya procesa totalVenta correctamente.
 
+    Map<String, Ticket> fetchedTickets = {};
+    for (var a in abonosExtra) {
+      if (a.ticketId != null && a.ticketId != 'ENTREGA_REPARTIDOR' && a.ticketId != 'ENTREGA_GENERAL') {
+        if (!fetchedTickets.containsKey(a.ticketId)) {
+          try {
+            final doc = await FirebaseFirestore.instance.collection('tickets').doc(a.ticketId).get();
+            if (doc.exists && doc.data() != null) {
+              fetchedTickets[a.ticketId!] = Ticket.fromMap(doc.id, doc.data()!);
+            }
+          } catch (e) {
+            // Ignorar error individual
+          }
+        }
+      }
+    }
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -176,15 +223,12 @@ class PdfReportService {
           pw.Text('Repartidor: $repartidorNombre', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
           pw.SizedBox(height: 20),
           _buildSummaryCard([
-            'Lleva en Valor Total: ${_currencyFormat.format(totalAsignado)}',
+            'Total: ${_currencyFormat.format(totalAsignado)}',
             'Entregó a Caja: ${_currencyFormat.format(totalEntregado)}',
             'Debe a Caja: ${_currencyFormat.format(totalPendiente)}',
             'Recibido en Efectivo: ${_currencyFormat.format(totalEfectivo)}',
             'Recibido en Transferencia: ${_currencyFormat.format(totalTransferencia)}',
-            'Extra: ${_currencyFormat.format(abonosCobrados)}',
-            'Entregado a Caja: ${_currencyFormat.format(totalEntregado)}',
             'Pedidos Entregados: $countCompletados',
-            'Pedidos En Ruta: $countPendientes',
             'Pedidos Cancelados: $countCancelados',
           ]),
           pw.SizedBox(height: 20),
@@ -193,9 +237,9 @@ class PdfReportService {
           _buildRepartidorTicketsTable(tickets),
           if (abonosExtra.isNotEmpty) ...[
             pw.SizedBox(height: 20),
-            pw.Text('Abonos Cobrados (Extra)', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
+            pw.Text('Abonos Cobrados (Anteriores)', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
             pw.SizedBox(height: 10),
-            _buildAbonosTable(abonosExtra),
+            _buildAbonosTable(abonosExtra, fetchedTickets: fetchedTickets),
           ]
         ],
       ),
@@ -348,15 +392,14 @@ class PdfReportService {
         t.clienteNombre,
         estado,
         pagoStr,
-        fechaPagoStr,
         _currencyFormat.format(t.totalVenta),
       ];
     }).toList();
 
-    data.add(['', '', '', '', '', 'TOTAL:', _currencyFormat.format(sum)]);
+    data.add(['', '', '', '', 'TOTAL:', _currencyFormat.format(sum)]);
 
     return pw.TableHelper.fromTextArray(
-      headers: ['Folio', 'Fecha/Hora', 'Cliente', 'Estado', 'Pago', 'Fecha Cobro', 'Total'],
+      headers: ['Folio', 'Fecha/Hora', 'Cliente', 'Estado', 'Pago', 'Total'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
       rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
@@ -366,7 +409,7 @@ class PdfReportService {
     );
   }
 
-  static pw.Widget _buildAbonosTable(List<Abono> abonos) {
+  static pw.Widget _buildAbonosTable(List<Abono> abonos, {Map<String, Ticket> fetchedTickets = const {}}) {
     final data = List<List<dynamic>>.generate(abonos.length, (index) {
       final a = abonos[index];
       final fechaStr = a.createAt != null ? _dateFormat.format(a.createAt!.toDate()) : '-';
@@ -374,29 +417,339 @@ class PdfReportService {
       if (a.repartidorId != null && a.repartidorId!.isNotEmpty) {
          origen = a.repartidorId!;
       }
+      
+      String cliente = a.clienteId;
+      String folio = a.ticketId ?? 'General';
+      String saldo = '-';
+
+      if (a.ticketId != null && fetchedTickets.containsKey(a.ticketId)) {
+        final t = fetchedTickets[a.ticketId]!;
+        cliente = t.clienteNombre;
+        folio = t.folio.isNotEmpty ? t.folio : a.ticketId!;
+        saldo = _currencyFormat.format(t.saldoRestante);
+      }
+
       return [
         fechaStr,
-        a.ticketId ?? 'General',
+        cliente,
+        folio,
         origen,
+        saldo,
         _currencyFormat.format(a.monto),
       ];
     });
 
     return pw.TableHelper.fromTextArray(
-      headers: ['Fecha', 'Ticket / ID', 'Cobrado Por', 'Monto'],
+      headers: ['Fecha', 'Cliente', 'Folio / ID', 'Cobrado Por', 'Saldo Pend.', 'Abonó'],
       data: data,
-      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10),
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-      cellStyle: const pw.TextStyle(fontSize: 10),
+      cellStyle: const pw.TextStyle(fontSize: 9),
       cellAlignment: pw.Alignment.center,
       rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
       oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
       columnWidths: {
         0: const pw.FlexColumnWidth(2),
-        1: const pw.FlexColumnWidth(2),
-        2: const pw.FlexColumnWidth(2),
+        1: const pw.FlexColumnWidth(2.5),
+        2: const pw.FlexColumnWidth(1.5),
         3: const pw.FlexColumnWidth(2),
+        4: const pw.FlexColumnWidth(1.5),
+        5: const pw.FlexColumnWidth(1.5),
       },
     );
   }
+
+  static pw.Widget _buildGastosTable(List<Gasto> gastos) {
+    final data = List<List<dynamic>>.generate(gastos.length, (index) {
+      final g = gastos[index];
+      final fechaStr = g.fecha != null ? _dateFormat.format(g.fecha!.toDate()) : '-';
+
+      return [
+        fechaStr,
+        g.concepto,
+        g.createBy,
+        '- ${_currencyFormat.format(g.monto)}',
+      ];
+    });
+
+    return pw.TableHelper.fromTextArray(
+      headers: ['Fecha', 'Concepto', 'Registrado Por', 'Monto Retirado'],
+      data: data,
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.red800),
+      cellStyle: const pw.TextStyle(fontSize: 9),
+      cellAlignment: pw.Alignment.centerLeft,
+      rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
+      oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+      columnWidths: {
+        0: const pw.FlexColumnWidth(1.5),
+        1: const pw.FlexColumnWidth(3),
+        2: const pw.FlexColumnWidth(1.5),
+        3: const pw.FlexColumnWidth(1.5),
+      },
+    );
+  }
+
+  static Future<void> generateProductosVendidosPdf(BuildContext context, List<Ticket> tickets, String dateRangeLabel) async {
+    final pdf = pw.Document();
+
+    final ByteData bytes = await rootBundle.load('assets/images/iconoInicio.png');
+    final Uint8List byteList = bytes.buffer.asUint8List();
+    final image = pw.MemoryImage(byteList);
+
+    Map<String, double> contCarnes = {};
+    Map<String, double> contCatalogo = {};
+
+    for (var t in tickets) {
+      if (t.estadoEntrega != 'Cancelado') {
+        for (var item in t.productos) {
+          if (item.seccion == 'carniceria') {
+            contCarnes[item.nombre] = (contCarnes[item.nombre] ?? 0.0) + item.cantidad;
+          } else {
+            contCatalogo[item.nombre] = (contCatalogo[item.nombre] ?? 0.0) + item.cantidad;
+          }
+        }
+      }
+    }
+
+    var listCarnes = contCarnes.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    var listCatalogo = contCatalogo.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
+    final data = <List<String>>[];
+    for (var entry in listCarnes) {
+      data.add([entry.key, 'Carnicería', '${entry.value.toStringAsFixed(1)} kg']);
+    }
+    for (var entry in listCatalogo) {
+      data.add([entry.key, 'Catálogo', '${entry.value.toInt()} pzas']);
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.letter,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return [
+            _buildHeader('Reporte de Productos Vendidos', dateRangeLabel, image),
+            pw.SizedBox(height: 20),
+            if (data.isEmpty)
+              pw.Text('No se encontraron productos vendidos en este periodo.', style: pw.TextStyle(fontSize: 14))
+            else
+              pw.TableHelper.fromTextArray(
+                headers: ['Producto', 'Sección', 'Cantidad Vendida'],
+                data: data,
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 12),
+                headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+                cellStyle: const pw.TextStyle(fontSize: 11),
+                cellAlignment: pw.Alignment.centerLeft,
+                rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
+                oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(3),
+                  1: const pw.FlexColumnWidth(1.5),
+                  2: const pw.FlexColumnWidth(1.5),
+                },
+              ),
+          ];
+        },
+      ),
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text('Vista Previa del Reporte')),
+          body: InteractiveViewer(
+            minScale: 1.0,
+            maxScale: 4.0,
+            child: PdfPreview(
+              build: (format) async => pdf.save(),
+              canChangeOrientation: false,
+              canChangePageFormat: false,
+              canDebug: false,
+              pdfFileName: 'productosVendidos-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Future<void> generateReporteDeudoresPdf(BuildContext context, List<Ticket> tickets, List<Abono> abonos) async {
+    final pdf = pw.Document();
+    
+    // Cargar icono
+    final ByteData bytes = await rootBundle.load('assets/images/iconoInicio.png');
+    final Uint8List byteList = bytes.buffer.asUint8List();
+    final image = pw.MemoryImage(byteList);
+
+    Map<String, List<Ticket>> ticketsByClient = {};
+    for (var t in tickets) {
+      if (!ticketsByClient.containsKey(t.clienteId)) ticketsByClient[t.clienteId] = [];
+      ticketsByClient[t.clienteId]!.add(t);
+    }
+
+    List<_DeudorData> deudores = [];
+
+    for (var entry in ticketsByClient.entries) {
+      String clienteId = entry.key;
+      String clienteNombre = entry.value.first.clienteNombre;
+      double deuda = 0;
+      List<String> itemsDesc = [];
+      Set<String> categorias = {};
+      DateTime? oldestTicketDate;
+
+      for (var t in entry.value) {
+        deuda += t.saldoRestante;
+        if (t.fecha != null) {
+          final tDate = t.fecha!.toDate();
+          if (oldestTicketDate == null || tDate.isBefore(oldestTicketDate)) {
+            oldestTicketDate = tDate;
+          }
+        }
+        for (var item in t.productos) {
+          itemsDesc.add(item.descripcionAmigable);
+          if (item.seccion.isNotEmpty) categorias.add(item.seccion);
+        }
+      }
+
+      DateTime? lastPaymentDate;
+      for (var a in abonos) {
+        if (a.clienteId == clienteId) {
+          if (a.fecha != null) {
+            final aDate = a.fecha!.toDate();
+            if (lastPaymentDate == null || aDate.isAfter(lastPaymentDate)) {
+              lastPaymentDate = aDate;
+            }
+          }
+        }
+      }
+
+      DateTime referenceDate = lastPaymentDate ?? oldestTicketDate ?? DateTime.now();
+      
+      // Tomar hasta 5 productos para no saturar la tabla
+      String productosResumen = itemsDesc.take(5).join(', ');
+      if (itemsDesc.length > 5) productosResumen += '...';
+
+      deudores.add(_DeudorData(
+        clienteNombre: clienteNombre,
+        deudaTotal: deuda,
+        fechaReferencia: referenceDate,
+        categoria: categorias.isEmpty ? 'General' : categorias.join(', '),
+        productos: productosResumen,
+      ));
+    }
+
+    // Ordenar: el que lleva más tiempo sin pagar (fecha más antigua) va primero.
+    deudores.sort((a, b) => a.fechaReferencia.compareTo(b.fechaReferencia));
+
+    double totalDeudaGlobal = 0;
+    for (var d in deudores) {
+      totalDeudaGlobal += d.deudaTotal;
+    }
+
+    // Dividir en chunks para paginación si hay muchos deudores
+    final int itemsPerPage = 25;
+    for (int i = 0; i < deudores.length; i += itemsPerPage) {
+      final chunk = deudores.skip(i).take(itemsPerPage).toList();
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context contextPdf) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (i == 0) _buildHeader('Reporte de Deudores', 'Ordenado por tiempo sin abono', image),
+                if (i > 0) pw.Text('Reporte de Deudores (Continuación)', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 20),
+                if (i == 0)
+                  pw.Container(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Text('Deuda Global Pendiente: ${_currencyFormat.format(totalDeudaGlobal)}', 
+                      style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.red)),
+                  ),
+                pw.SizedBox(height: 10),
+                pw.TableHelper.fromTextArray(
+                  headers: ['Cliente', 'Categoría', 'Último Abono / Compra', 'Productos', 'Deuda'],
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                  headerDecoration: const pw.BoxDecoration(color: PdfColors.red800),
+                  cellStyle: const pw.TextStyle(fontSize: 9),
+                  cellAlignment: pw.Alignment.centerLeft,
+                  data: chunk.map((d) {
+                    return [
+                      d.clienteNombre,
+                      d.categoria,
+                      _dateFormat.format(d.fechaReferencia),
+                      d.productos,
+                      _currencyFormat.format(d.deudaTotal),
+                    ];
+                  }).toList(),
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(2),
+                    1: const pw.FlexColumnWidth(1.5),
+                    2: const pw.FlexColumnWidth(1.5),
+                    3: const pw.FlexColumnWidth(3),
+                    4: const pw.FlexColumnWidth(1.5),
+                  },
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
+    if (deudores.isEmpty) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context contextPdf) {
+            return pw.Column(
+              children: [
+                _buildHeader('Reporte de Deudores', '', image),
+                pw.SizedBox(height: 20),
+                pw.Center(child: pw.Text('No hay clientes con deuda pendiente.')),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text('Vista Previa del Reporte')),
+          body: InteractiveViewer(
+            minScale: 1.0,
+            maxScale: 4.0,
+            child: PdfPreview(
+              build: (format) async => pdf.save(),
+              canChangeOrientation: false,
+              canChangePageFormat: false,
+              canDebug: false,
+              pdfFileName: 'ReporteDeudores-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeudorData {
+  final String clienteNombre;
+  final double deudaTotal;
+  final DateTime fechaReferencia; 
+  final String categoria;
+  final String productos;
+
+  _DeudorData({
+    required this.clienteNombre,
+    required this.deudaTotal,
+    required this.fechaReferencia,
+    required this.categoria,
+    required this.productos,
+  });
 }

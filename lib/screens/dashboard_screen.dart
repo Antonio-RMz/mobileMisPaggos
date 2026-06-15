@@ -6,10 +6,12 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../providers/dashboard_provider.dart';
 import '../models/cliente_model.dart';
+import '../models/ticket_model.dart';
 import 'cliente_profile_screen.dart';
 import '../widgets/app_drawer.dart';
 import 'cliente_list_screen.dart';
-import 'entregas_list_screen.dart';
+
+import '../config/environment.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -36,7 +38,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: AppTheme.background,
       drawer: const AppDrawer(),
       appBar: AppBar(
-        title: const Text('MisPaggos'),
+        title: Text(Environment.isDev ? 'MisPaggosDev' : 'MisPaggos'),
       ),
       body: SafeArea(
         child: RefreshIndicator(
@@ -50,39 +52,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 _buildHeader(),
                 const SizedBox(height: 24),
-
                 _buildMetricsCards(context),
-                const SizedBox(height: 32),
-                _buildDeliveryStatus(context),
-                const SizedBox(height: 32),
-                const Text(
-                  'Atención Prioritaria (Top Morosos)',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textDark,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildTopMorososList(context),
                 const SizedBox(height: 32),
                 _buildTopProducts(context),
               ],
             ),
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ClienteListScreen(isSelectingForOrder: true)),
-          );
-        },
-        icon: const Icon(LucideIcons.truck, color: Colors.white),
-        label: const Text('NUEVO PEDIDO', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
-        backgroundColor: AppTheme.accent,
-        elevation: 4,
       ),
     );
   }
@@ -142,25 +118,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Column(
           children: [
             _buildSolidCard(
-              title: 'Deuda de Clientes',
+              title: 'Deuda Generada Hoy',
               amount: dashboard.totalPorCobrar,
               icon: LucideIcons.wallet,
               color: AppTheme.whiteColor,
               borderColor: AppTheme.accent,
               textColor: AppTheme.textDark,
+              onTap: () => _mostrarDetalleDeudaHoy(context, dashboard.ticketsDeudaHoy),
             ),
             const SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
                   child: _buildSolidCard(
-                    title: 'Ventas del Mes',
+                    title: 'Ventas de la Sem.',
                     amount: dashboard.ventasDelMes,
                     icon: LucideIcons.trendingUp,
                     color: AppTheme.whiteColor,
                     borderColor: AppTheme.primary,
                     textColor: AppTheme.textDark,
                     small: true,
+                    onTap: () => _mostrarDetalleVentasSemana(context, dashboard.ventasPorDiaSemana),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -183,6 +161,92 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _mostrarDetalleDeudaHoy(BuildContext context, List<Ticket> ticketsDeuda) {
+    if (ticketsDeuda.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay deuda generada el día de hoy.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Desglose de Deuda de Hoy', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: ticketsDeuda.length,
+                  itemBuilder: (context, index) {
+                    final t = ticketsDeuda[index];
+                    final saldo = t.totalVenta - t.totalAbonado;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(t.clienteNombre, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text('Folio: ${t.folio ?? "S/F"}'),
+                      trailing: Text(currencyFormat.format(saldo), style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accent, fontSize: 16)),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _mostrarDetalleVentasSemana(BuildContext context, Map<String, double> ventasPorDia) {
+    if (ventasPorDia.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay datos de ventas para esta semana.')),
+      );
+      return;
+    }
+
+    final list = ventasPorDia.entries.toList();
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          height: MediaQuery.of(context).size.height * 0.5,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Ventas por Día (Esta Semana)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: list.length,
+                  itemBuilder: (context, index) {
+                    final item = list[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(item.key, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      trailing: Text(currencyFormat.format(item.value), style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary, fontSize: 16)),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildSolidCard({
     required String title,
     required double amount,
@@ -191,9 +255,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required Color borderColor,
     required Color textColor,
     bool small = false,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: EdgeInsets.all(small ? 12 : 16),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(small ? 12 : 16),
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(16),
@@ -232,214 +299,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildTopMorososList(BuildContext context) {
-    return Consumer<DashboardProvider>(
-      builder: (context, dashboard, child) {
-        if (dashboard.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (dashboard.topMorosos.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTheme.success.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.success.withOpacity(0.3), width: 2),
-            ),
-            child: const Center(
-              child: Text(
-                '¡Excelente! No hay clientes con deuda.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.success, fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-          );
-        }
-
-        return ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: dashboard.topMorosos.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 16),
-          itemBuilder: (context, index) {
-            final cliente = dashboard.topMorosos[index];
-            return _buildMorosoTile(context, cliente, index);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildMorosoTile(BuildContext context, Cliente cliente, int index) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300, width: 1.5),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          radius: 22,
-          backgroundColor: Color(cliente.colorPerfil),
-          foregroundColor: AppTheme.slateBlue,
-          child: Text(
-            cliente.iniciales,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-        ),
-        title: Text(
-          cliente.nombreCompleto,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        subtitle: const Text(
-          'Tocar para ver historial',
-          style: TextStyle(color: AppTheme.textLight, fontSize: 12),
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            const Text('Debe', style: TextStyle(color: AppTheme.textLight, fontSize: 11)),
-            Text(
-              currencyFormat.format(cliente.deudaTotal),
-              style: const TextStyle(
-                color: AppTheme.error,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ClienteProfileScreen(cliente: cliente),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildDeliveryStatus(BuildContext context) {
-    return Consumer<DashboardProvider>(
-      builder: (context, dashboard, child) {
-        if (dashboard.isLoading) return const SizedBox();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Estado de Envíos (Hoy)',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textDark),
-                ),
-                Icon(LucideIcons.map, color: AppTheme.primary, size: 32),
-              ],
-            ),
-            const SizedBox(height: 20),
-            _buildStatusCard(
-              context: context,
-              title: 'En Reparto (Pendientes)',
-              count: dashboard.entregasEnReparto,
-              color: Colors.orange.shade700,
-              icon: LucideIcons.packageOpen,
-              estadoFiltro: 'Pendiente',
-            ),
-            _buildStatusCard(
-              context: context,
-              title: 'Completados (Entregados)',
-              count: dashboard.entregasEnviadas,
-              color: AppTheme.success,
-              icon: LucideIcons.checkCircle2,
-              estadoFiltro: 'Completados',
-            ),
-            _buildStatusCard(
-              context: context,
-              title: 'Cancelados',
-              count: dashboard.entregasCanceladas,
-              color: AppTheme.error,
-              icon: LucideIcons.xCircle,
-              estadoFiltro: 'Cancelado',
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildStatusCard({
-    required BuildContext context,
-    required String title,
-    required int count,
-    required Color color,
-    required IconData icon,
-    required String estadoFiltro,
-  }) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => EntregasListScreen(title: title, estadoEntregaFiltro: estadoFiltro),
-          ),
-        ).then((_) {
-          if (context.mounted) {
-            context.read<DashboardProvider>().cargarMetricas();
-          }
-        });
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.4), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            )
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textDark),
-              ),
-            ),
-            Text(
-              count.toString(),
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color),
-            ),
-            const SizedBox(width: 8),
-            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 24),
-          ],
-        ),
-      ),
-    );
+    ));
   }
 
   Widget _buildTopProducts(BuildContext context) {
@@ -456,7 +316,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Productos Más Vendidos',
+              'Productos Más Vendidos (Hoy)',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textDark),
             ),
             const SizedBox(height: 20),
@@ -496,7 +356,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(child: Text(entry.key, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500))),
-                Text('${entry.value.toStringAsFixed(1)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                Text(
+                  _censurarDatos 
+                      ? 'Vendidos: ***' 
+                      : title == 'Carnicería' 
+                          ? 'Vendidos: ${entry.value.toStringAsFixed(1)} kg' 
+                          : 'Vendidos: ${entry.value.toInt()} pzas',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textLight),
+                ),
               ],
             ),
           )).toList(),

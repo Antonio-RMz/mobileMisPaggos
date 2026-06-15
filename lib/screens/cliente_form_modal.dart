@@ -233,7 +233,6 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
                       controller: _apPaternoCtrl,
                       hintText: 'Ej. Valdés',
                       icon: Icons.person_outline,
-                      isRequired: true,
                     ),
                     const SizedBox(height: 16),
 

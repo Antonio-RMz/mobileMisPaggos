@@ -5,8 +5,11 @@ import 'package:intl/intl.dart';
 import '../services/firebase_service.dart';
 import '../services/pdf_report_service.dart';
 import '../models/ticket_model.dart';
+import '../models/abono_model.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
+import '../utils/overlay_helper.dart';
+import 'dashboard_screen.dart';
 
 class CorteCajaScreen extends StatefulWidget {
   const CorteCajaScreen({super.key});
@@ -94,6 +97,13 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
           backgroundColor: Colors.white,
           elevation: 0,
           iconTheme: const IconThemeData(color: AppTheme.textDark),
+          actions: [
+            IconButton(
+              icon: const Icon(LucideIcons.lock),
+              onPressed: () => _mostrarDialogoPIN(context),
+              tooltip: 'Resumen del Negocio',
+            ),
+          ],
           bottom: const TabBar(
             labelColor: AppTheme.primary,
             unselectedLabelColor: Colors.grey,
@@ -107,13 +117,17 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
         body: StreamBuilder<List<Ticket>>(
           stream: _firebaseService.getTicketsByDateRange(_startDate, _endDate),
           builder: (context, ticketsSnapshot) {
-            if (ticketsSnapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+            return StreamBuilder<List<Abono>>(
+              stream: _firebaseService.getAbonosByDateRange(_startDate, _endDate),
+              builder: (context, abonosSnapshot) {
+                if (ticketsSnapshot.connectionState == ConnectionState.waiting || abonosSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-            final tickets = ticketsSnapshot.data ?? [];
+                final tickets = ticketsSnapshot.data ?? [];
+                final abonos = abonosSnapshot.data ?? [];
 
-            return Column(
+                return Column(
               children: [
                 // Filtro de fecha (común para ambas pestañas)
                 Padding(
@@ -156,20 +170,141 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                 Expanded(
                   child: TabBarView(
                     children: [
-                      _buildCorteGeneralTab(tickets),
-                      _buildCorteRepartidorTab(tickets),
+                      _buildCorteGeneralTab(tickets, abonos),
+                      _buildCorteRepartidorTab(tickets, abonos),
                     ],
                   ),
                 ),
               ],
             );
           }
+        );
+          }
         ),
       ),
     );
   }
 
-  Widget _buildCorteGeneralTab(List<Ticket> tickets) {
+  void _mostrarDialogoPIN(BuildContext context) {
+    final TextEditingController pinCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Acceso Restringido'),
+          content: TextField(
+            controller: pinCtrl,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'PIN de acceso', border: OutlineInputBorder()),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () {
+                if (pinCtrl.text == '1234') {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN incorrecto'), backgroundColor: Colors.red));
+                }
+              },
+              child: const Text('Ingresar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _mostrarDialogoAbonoRepartidor(BuildContext contextOriginal, String repartidorNombre, double totalDeuda) {
+    final TextEditingController abonoCtrl = TextEditingController();
+    showDialog(
+      context: contextOriginal,
+      builder: (ctxAbono) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Entrega Efectivo - $repartidorNombre', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Debe a Caja actual: ${_currencyFormat.format(totalDeuda)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: abonoCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Monto entregado (\$)', prefixText: '\$ ', border: OutlineInputBorder()),
+                autofocus: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctxAbono), child: const Text('Cancelar', style: TextStyle(color: Colors.grey))),
+            ElevatedButton(
+              onPressed: () async {
+                final double monto = double.tryParse(abonoCtrl.text) ?? 0.0;
+                
+                if (monto > totalDeuda) {
+                  OverlayHelper.showError(contextOriginal, message: 'El monto no puede ser mayor a la deuda de ${_currencyFormat.format(totalDeuda)}');
+                  return;
+                }
+                
+                if (monto > 0) {
+                  Navigator.pop(ctxAbono); // cierra modal del monto
+                  
+                  // Abre confirmación secundaria que el usuario pidió
+                  showDialog(
+                    context: contextOriginal,
+                    builder: (ctxConfirm) => AlertDialog(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      title: const Text('Confirmar Abono', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                      content: Text('¿Deseas confirmar un abono de ${_currencyFormat.format(monto)} del repartidor $repartidorNombre de la cuenta total de ${_currencyFormat.format(totalDeuda)}?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctxConfirm),
+                          child: const Text('No, corregir', style: TextStyle(color: Colors.redAccent)),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                          onPressed: () async {
+                            Navigator.pop(ctxConfirm); // cierra confirmacion
+                            
+                            final safeContext = this.context;
+                            if (!safeContext.mounted) return;
+                            
+                            showDialog(context: safeContext, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                            
+                            try {
+                              await _firebaseService.registrarAbonoRepartidor(repartidorNombre, monto);
+                              if (safeContext.mounted) {
+                                Navigator.pop(safeContext); // cerrar loading
+                                OverlayHelper.showSuccess(safeContext, message: 'Entrega registrada exitosamente');
+                              }
+                            } catch (e) {
+                              if (safeContext.mounted) {
+                                Navigator.pop(safeContext); // cerrar loading
+                                OverlayHelper.showError(safeContext, message: 'Error: $e');
+                              }
+                            }
+                          },
+                          child: const Text('Sí, Confirmar Abono', style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              },
+              child: const Text('Siguiente'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCorteGeneralTab(List<Ticket> tickets, List<Abono> abonos) {
     double totalGeneral = 0;
     double totalDomicilio = 0;
     double totalLocal = 0;
@@ -191,6 +326,18 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
         }
       }
     }
+
+    double totalAbonosExtra = 0;
+    for (var a in abonos) {
+      if (a.ticketId != 'ENTREGA_REPARTIDOR' && a.ticketId != 'ENTREGA_GENERAL') {
+        bool isTicketInList = tickets.any((t) => t.id == a.ticketId);
+        if (!isTicketInList) {
+          totalAbonosExtra += a.monto;
+        }
+      }
+    }
+    
+    totalEfectivo += totalAbonosExtra;
 
     return CustomScrollView(
       slivers: [
@@ -254,7 +401,20 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                           ],
                         ),
                       ],
-                    )
+                    ),
+                    if (totalAbonosExtra > 0) ...[
+                      const SizedBox(height: 12),
+                      Container(height: 1, color: Colors.grey.shade200),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(LucideIcons.clock, size: 16, color: Colors.orange),
+                          const SizedBox(width: 4),
+                          Text('Extra: ${_currencyFormat.format(totalAbonosExtra)}', style: const TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ]
                   ],
                 ),
               ),
@@ -262,7 +422,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    PdfReportService.generateCorteGeneralPdf(tickets, _filtro);
+                    PdfReportService.generateCorteGeneralPdf(context, tickets, abonos, _filtro);
                   },
                   icon: const Icon(LucideIcons.printer, color: Colors.white),
                   label: const Text('Generar PDF Corte General', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -329,17 +489,25 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
     );
   }
 
-  Widget _buildCorteRepartidorTab(List<Ticket> tickets) {
+  Widget _buildCorteRepartidorTab(List<Ticket> tickets, List<Abono> abonos) {
     Map<String, List<Ticket>> ticketsPorRepartidor = {};
+    
+    // Agrupar repartidores de abonos también (por si un repartidor no tuvo ventas hoy pero sí cobró un abono)
+    Set<String> repartidoresNombres = {};
 
     for (var t in tickets) {
       if (t.tipoEntrega == 'Domicilio' && t.repartidorNombre != null && t.repartidorNombre!.isNotEmpty) {
-        String repartidor = t.repartidorNombre!;
-        if (!ticketsPorRepartidor.containsKey(repartidor)) {
-          ticketsPorRepartidor[repartidor] = [];
-        }
-        ticketsPorRepartidor[repartidor]!.add(t);
+        repartidoresNombres.add(t.repartidorNombre!);
       }
+    }
+    for (var a in abonos) {
+       if (a.repartidorId != null && a.repartidorId!.isNotEmpty) {
+          repartidoresNombres.add(a.repartidorId!);
+       }
+    }
+
+    for (var r in repartidoresNombres) {
+       ticketsPorRepartidor[r] = tickets.where((t) => t.tipoEntrega == 'Domicilio' && t.repartidorNombre == r).toList();
     }
 
     var repartidores = ticketsPorRepartidor.keys.toList()..sort();
@@ -367,20 +535,35 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                   countCancelados++;
                 } else {
                   totalAsignado += t.totalVenta;
+                  totalEntregado += t.totalAbonado;
+                  totalPendiente += t.saldoRestante;
+                  
                   if (t.pagoRepartidorConfirmado) {
                     countCompletados++;
-                    totalEntregado += t.totalVenta;
-                    if (t.metodoPago == 'Transferencia') {
-                      totalTransferencia += t.totalVenta;
-                    } else {
-                      totalEfectivo += t.totalVenta;
-                    }
                   } else {
                     countPendientes++;
-                    totalPendiente += t.totalVenta;
+                  }
+                  
+                  if (t.metodoPago == 'Transferencia') {
+                    totalTransferencia += t.totalAbonado;
+                  } else {
+                    totalEfectivo += t.totalAbonado;
                   }
                 }
               }
+
+              double abonosCobrados = 0;
+              for (var a in abonos) {
+                if (a.ticketId != 'ENTREGA_REPARTIDOR' && a.ticketId != 'ENTREGA_GENERAL') {
+                  bool isTicketInList = tickets.any((t) => t.id == a.ticketId);
+                  if (!isTicketInList && (a.repartidorId == repartidor || a.createBy == repartidor)) {
+                    abonosCobrados += a.monto;
+                  }
+                }
+              }
+
+              // No sumamos a totalEntregado ni restamos de totalPendiente 
+              // porque t.totalAbonado y t.saldoRestante ya lo manejan.
 
               return Card(
                 elevation: 0,
@@ -409,59 +592,58 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                             iconSize: 24,
                             icon: const Icon(LucideIcons.printer, color: AppTheme.primary),
                             onPressed: () {
-                              PdfReportService.generateCorteRepartidorPdf(repartidor, ticketsRep, _filtro);
+                              PdfReportService.generateCorteRepartidorPdf(context, repartidor, ticketsRep, abonos, _filtro);
                             },
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildMiniStat('Confirmado', countCompletados, Colors.green),
-                          _buildMiniStat('Pendiente', countPendientes, Colors.orange),
-                          _buildMiniStat('Cancelado', countCancelados, Colors.red),
-                        ],
-                      ),
-                      const Divider(height: 32, thickness: 1.0),
+                      const Divider(height: 16, thickness: 1.0),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Venta Asignada', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const Text('Valor Mercancía', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
                               Text(_currencyFormat.format(totalAsignado), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textDark)),
                             ],
                           ),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              const Text('Faltante', style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const Text('Debe entregar', style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold)),
                               Text(_currencyFormat.format(totalPendiente), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textDark)),
                             ],
                           ),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              const Text('Recibido', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const Text('Entregó a caja', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
                               Text(_currencyFormat.format(totalEntregado), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textDark)),
                             ],
                           ),
                         ],
                       ),
-                      if (totalEfectivo > 0 || totalTransferencia > 0) ...[
-                        const SizedBox(height: 12),
+                      if (abonosCobrados > 0) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Extra:', style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600)),
+                            Text(_currencyFormat.format(abonosCobrados), style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
+                          ],
+                        )
+                      ],
+                      if (totalTransferencia > 0) ...[
+                        const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            if (totalEfectivo > 0)
-                              Text('Efectivo: ${_currencyFormat.format(totalEfectivo)}  ', style: const TextStyle(color: Colors.green, fontSize: 13, fontWeight: FontWeight.w600)),
-                            if (totalTransferencia > 0)
-                              Text('Transferencia: ${_currencyFormat.format(totalTransferencia)}', style: const TextStyle(color: Colors.blue, fontSize: 13, fontWeight: FontWeight.w600)),
+                            Text('(*Incluye ${_currencyFormat.format(totalTransferencia)} por Transferencia)', style: const TextStyle(color: Colors.blue, fontSize: 12, fontStyle: FontStyle.italic)),
                           ],
                         ),
-                      ],
+                      ]
                     ],
                   ),
                 ),

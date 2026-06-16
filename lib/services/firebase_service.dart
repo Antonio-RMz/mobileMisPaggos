@@ -879,15 +879,13 @@ class FirebaseService {
         .where('empresaId', isEqualTo: empresaId)
         .get();
 
-    final tickets = ticketsSnapshot.docs
+    var tickets = ticketsSnapshot.docs
         .map((d) => Ticket.fromMap(d.id, d.data() as Map<String, dynamic>))
         .where((t) {
           bool esMismoRepartidor = t.repartidorNombre?.trim().toLowerCase() == repartidorNombre.trim().toLowerCase();
           bool esPendiente = t.estadoEntrega != 'Cancelado' && !t.pagoRepartidorConfirmado && t.saldoRestante > 0;
           return esMismoRepartidor && esPendiente;
         })
-        .toList();
-
         .toList();
 
     if (ticketIdsToPay != null && ticketIdsToPay.isNotEmpty) {

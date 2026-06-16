@@ -502,6 +502,31 @@ class PdfReportService {
       ];
     }).toList();
 
+    double totalSum = 0;
+    for (var mov in movimientos) {
+      if (mov['estado'] != 'Cancelado') {
+        final monto = mov['monto'] as double;
+        final tipo = mov['tipo'] as String;
+        if (tipo == 'Gasto') {
+          totalSum -= monto;
+        } else {
+          totalSum += monto;
+        }
+      }
+    }
+
+    data.add([
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'TOTAL:',
+      _currencyFormat.format(totalSum)
+    ]);
+
     return pw.TableHelper.fromTextArray(
       headers: ['Fecha', 'Folio/ID', 'Cliente/Concepto', 'Tipo', 'Entrega', 'Método', 'Saldo Pend.', 'Estado', 'Monto'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 8),

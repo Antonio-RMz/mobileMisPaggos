@@ -466,30 +466,53 @@ class PdfReportService {
       if (tipo == 'Venta') {
         final subtipo = mov['subtipo'];
         final metodo = mov['metodo'];
-        detalle = 'Venta en $subtipo • $metodo';
+        detalle = 'Venta en $subtipo\n$metodo';
       }
 
       String montoStr = _currencyFormat.format(monto);
       if (tipo == 'Gasto') {
         montoStr = '-$montoStr';
       }
+      
+      final obj = mov['obj'];
+      String folioId = '-';
+      String cobrador = '-';
+      String saldo = '-';
+      
+      if (tipo == 'Venta') {
+        final t = obj as Ticket;
+        folioId = t.folio.isNotEmpty ? t.folio : 'N/A';
+        cobrador = t.cobradoPor ?? t.createBy ?? '-';
+        if (t.saldoRestante > 0) saldo = _currencyFormat.format(t.saldoRestante);
+      } else if (tipo == 'Abono') {
+        final a = obj as Abono;
+        folioId = a.ticketId ?? 'General';
+        cobrador = (a.repartidorId != null && a.repartidorId!.isNotEmpty) ? a.repartidorId! : a.createBy;
+      } else if (tipo == 'Gasto') {
+        final g = obj as Gasto;
+        folioId = 'N/A';
+        cobrador = g.createBy;
+      }
 
       return [
         fechaStr,
+        folioId,
         nombre,
         detalle,
+        cobrador,
+        saldo,
         estado == 'Cancelado' ? 'Cancelado' : 'Aprobado',
         montoStr,
       ];
     }).toList();
 
     return pw.TableHelper.fromTextArray(
-      headers: ['Fecha/Hora', 'Concepto/Cliente', 'Detalle', 'Estado', 'Monto'],
-      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10),
+      headers: ['Fecha', 'Folio / ID', 'Concepto/Cliente', 'Detalle', 'Registrado Por', 'Saldo Pend.', 'Estado', 'Monto'],
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 8),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
       rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
       cellAlignment: pw.Alignment.centerLeft,
-      cellStyle: const pw.TextStyle(fontSize: 9),
+      cellStyle: const pw.TextStyle(fontSize: 8),
       data: data,
     );
   }

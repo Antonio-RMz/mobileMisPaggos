@@ -543,7 +543,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                   icon: const Icon(LucideIcons.arrowDownCircle, color: Colors.white),
                   label: const Text('Registrar Salida de Dinero', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
+                    backgroundColor: Colors.red.shade600,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),

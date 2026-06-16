@@ -425,34 +425,14 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
   }
 
   Widget _buildCorteGeneralTab(List<Ticket> tickets, List<Abono> abonos, List<Gasto> gastos) {
-    double totalGeneral = 0;
-    double totalDomicilio = 0;
-    double totalLocal = 0;
-    double totalEfectivo = 0;
-    double totalTransferencia = 0;
+    double totalVendido = 0;
+    double totalPorCobrar = 0;
 
     for (var t in tickets) {
       if (t.estadoEntrega != 'Cancelado') {
-        totalGeneral += t.totalVenta;
-        if (t.tipoEntrega == 'Domicilio') {
-          totalDomicilio += t.totalVenta;
-        } else {
-          totalLocal += t.totalVenta;
-        }
-        if (t.metodoPago == 'Transferencia') {
-          totalTransferencia += t.totalVenta;
-        } else {
-          totalEfectivo += t.totalVenta;
-        }
-      }
-    }
-
-    double totalAbonosExtra = 0;
-    for (var a in abonos) {
-      if (a.ticketId != 'ENTREGA_REPARTIDOR' && a.ticketId != 'ENTREGA_GENERAL') {
-        bool isTicketInList = tickets.any((t) => t.id == a.ticketId);
-        if (!isTicketInList) {
-          totalAbonosExtra += a.monto;
+        totalVendido += t.totalVenta;
+        if (!t.pagoRepartidorConfirmado && t.saldoRestante > 0) {
+          totalPorCobrar += t.saldoRestante;
         }
       }
     }
@@ -462,8 +442,50 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
       totalGastos += g.monto;
     }
 
-    totalEfectivo += totalAbonosExtra;
-    totalEfectivo -= totalGastos;
+    // Prepare combined list of movimientos
+    List<Map<String, dynamic>> movimientos = [];
+    
+    for (var t in tickets) {
+      movimientos.add({
+        'fecha': t.fecha?.toDate() ?? DateTime.now(),
+        'tipo': 'Venta',
+        'subtipo': t.tipoEntrega, // Domicilio, Local
+        'metodo': t.metodoPago, // Efectivo, Transferencia
+        'monto': t.totalVenta,
+        'estado': t.estadoEntrega,
+        'nombre': t.clienteNombre,
+        'obj': t,
+      });
+    }
+    for (var a in abonos) {
+      if (a.ticketId != 'ENTREGA_REPARTIDOR' && a.ticketId != 'ENTREGA_GENERAL') {
+        movimientos.add({
+          'fecha': a.fecha?.toDate() ?? DateTime.now(),
+          'tipo': 'Abono',
+          'subtipo': '',
+          'metodo': '',
+          'monto': a.monto,
+          'estado': '',
+          'nombre': 'Abono a Deuda',
+          'obj': a,
+        });
+      }
+    }
+    for (var g in gastos) {
+      movimientos.add({
+        'fecha': g.fecha?.toDate() ?? DateTime.now(),
+        'tipo': 'Gasto',
+        'subtipo': '',
+        'metodo': '',
+        'monto': g.monto,
+        'estado': '',
+        'nombre': g.concepto,
+        'obj': g,
+      });
+    }
+    
+    // Sort descending by date
+    movimientos.sort((a, b) => (b['fecha'] as DateTime).compareTo(a['fecha'] as DateTime));
 
     return CustomScrollView(
       slivers: [
@@ -484,74 +506,33 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                 ),
                 child: Column(
                   children: [
-                    const Text('Ventas Totales', style: TextStyle(color: AppTheme.textLight, fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    Text(
-                      _currencyFormat.format(totalGeneral),
-                      style: const TextStyle(color: AppTheme.textDark, fontSize: 34, fontWeight: FontWeight.w900, letterSpacing: -1),
-                    ),
+                    const Text('Resumen General', style: TextStyle(color: AppTheme.textLight, fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         Column(
                           children: [
-                            const Text('Local', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
-                            Text(_currencyFormat.format(totalLocal), style: const TextStyle(color: AppTheme.primary, fontSize: 18, fontWeight: FontWeight.bold)),
+                            const Text('Vendí', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
+                            Text(_currencyFormat.format(totalVendido), style: const TextStyle(color: Colors.blue, fontSize: 18, fontWeight: FontWeight.bold)),
                           ],
                         ),
                         Container(height: 40, width: 2, color: Colors.grey.shade300),
                         Column(
                           children: [
-                            const Text('Domicilio', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
-                            Text(_currencyFormat.format(totalDomicilio), style: const TextStyle(color: AppTheme.primary, fontSize: 18, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Column(
-                          children: [
-                            const Text('Efectivo', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
-                            Text(_currencyFormat.format(totalEfectivo), style: const TextStyle(color: Colors.green, fontSize: 18, fontWeight: FontWeight.bold)),
+                            const Text('Gasté', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
+                            Text(_currencyFormat.format(totalGastos), style: const TextStyle(color: Colors.red, fontSize: 18, fontWeight: FontWeight.bold)),
                           ],
                         ),
                         Container(height: 40, width: 2, color: Colors.grey.shade300),
                         Column(
                           children: [
-                            const Text('Transferencia', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
-                            Text(_currencyFormat.format(totalTransferencia), style: const TextStyle(color: Colors.blue, fontSize: 18, fontWeight: FontWeight.bold)),
+                            const Text('Me Deben', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
+                            Text(_currencyFormat.format(totalPorCobrar), style: const TextStyle(color: Colors.orange, fontSize: 18, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ],
                     ),
-                    if (totalAbonosExtra > 0) ...[
-                      const SizedBox(height: 12),
-                      Container(height: 1, color: Colors.grey.shade200),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(LucideIcons.clock, size: 16, color: Colors.orange),
-                          const SizedBox(width: 4),
-                          Text('Abonos: ${_currencyFormat.format(totalAbonosExtra)}', style: const TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ],
-                    if (totalGastos > 0) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(LucideIcons.minusCircle, size: 16, color: Colors.red),
-                          const SizedBox(width: 4),
-                          Text('Menos Gastos: ${_currencyFormat.format(totalGastos)}', style: const TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ]
                   ],
                 ),
               ),
@@ -638,9 +619,9 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
             ],
           ),
         ),
-        if (tickets.isEmpty)
+        if (movimientos.isEmpty)
           const SliverFillRemaining(
-            child: Center(child: Text('No hay ventas en este rango de fechas.', style: TextStyle(color: Colors.grey, fontSize: 16))),
+            child: Center(child: Text('No hay movimientos en este rango de fechas.', style: TextStyle(color: Colors.grey, fontSize: 16))),
           )
         else
           SliverPadding(
@@ -648,7 +629,43 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
-                  final t = tickets.reversed.toList()[index];
+                  final mov = movimientos[index];
+                  final String tipo = mov['tipo'];
+                  final String subtipo = mov['subtipo'];
+                  final String metodo = mov['metodo'];
+                  final double monto = mov['monto'];
+                  final String estado = mov['estado'];
+                  final String nombre = mov['nombre'];
+                  
+                  IconData iconData = LucideIcons.store;
+                  Color iconColor = Colors.blue;
+                  Color bgColor = Colors.blue.shade100;
+                  
+                  if (tipo == 'Venta') {
+                    if (subtipo == 'Domicilio') {
+                      iconData = LucideIcons.bike;
+                      iconColor = Colors.orange;
+                      bgColor = Colors.orange.shade100;
+                    } else {
+                      iconData = LucideIcons.store;
+                      iconColor = Colors.blue;
+                      bgColor = Colors.blue.shade100;
+                    }
+                  } else if (tipo == 'Abono') {
+                    iconData = LucideIcons.banknote;
+                    iconColor = Colors.green;
+                    bgColor = Colors.green.shade100;
+                  } else if (tipo == 'Gasto') {
+                    iconData = LucideIcons.minusCircle;
+                    iconColor = Colors.red;
+                    bgColor = Colors.red.shade100;
+                  }
+
+                  String subtitle = tipo;
+                  if (tipo == 'Venta') {
+                    subtitle = 'Venta en $subtipo • $metodo';
+                  }
+
                   return Card(
                     elevation: 0,
                     margin: const EdgeInsets.only(bottom: 8),
@@ -660,18 +677,24 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       leading: CircleAvatar(
                         radius: 24,
-                        backgroundColor: t.tipoEntrega == 'Domicilio' ? Colors.orange.shade100 : Colors.blue.shade100,
-                        child: Icon(t.tipoEntrega == 'Domicilio' ? LucideIcons.bike : LucideIcons.store, 
-                          color: t.tipoEntrega == 'Domicilio' ? Colors.orange : Colors.blue, size: 24),
+                        backgroundColor: bgColor,
+                        child: Icon(iconData, color: iconColor, size: 24),
                       ),
-                      title: Text(t.clienteNombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      subtitle: Text(t.tipoEntrega, style: const TextStyle(fontSize: 14)),
+                      title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      subtitle: Text(subtitle, style: const TextStyle(fontSize: 14)),
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(_currencyFormat.format(t.totalVenta), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          if (t.estadoEntrega == 'Cancelado')
+                          Text(
+                            (tipo == 'Gasto' ? '-' : '') + _currencyFormat.format(monto), 
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold, 
+                              fontSize: 16,
+                              color: tipo == 'Gasto' ? Colors.red : (tipo == 'Abono' ? Colors.green : AppTheme.textDark)
+                            )
+                          ),
+                          if (estado == 'Cancelado')
                             const Text('Cancelado', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
                         ],
                       ),

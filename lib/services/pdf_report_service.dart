@@ -85,6 +85,18 @@ class PdfReportService {
       }
     }
 
+    List<Map<String, dynamic>> movimientos = [];
+    for (var t in tickets) {
+      movimientos.add({'fecha': t.fecha?.toDate() ?? DateTime.now(), 'tipo': 'Venta', 'subtipo': t.tipoEntrega, 'metodo': t.metodoPago, 'monto': t.totalVenta, 'estado': t.estadoEntrega, 'nombre': t.clienteNombre, 'obj': t});
+    }
+    for (var a in abonosExtra) {
+      movimientos.add({'fecha': a.fecha?.toDate() ?? DateTime.now(), 'tipo': 'Abono', 'subtipo': '', 'metodo': '', 'monto': a.monto, 'estado': '', 'nombre': 'Abono a Deuda', 'obj': a});
+    }
+    for (var g in gastos) {
+      movimientos.add({'fecha': g.fecha?.toDate() ?? DateTime.now(), 'tipo': 'Gasto', 'subtipo': '', 'metodo': '', 'monto': g.monto, 'estado': '', 'nombre': g.concepto, 'obj': g});
+    }
+    movimientos.sort((a, b) => (b['fecha'] as DateTime).compareTo(a['fecha'] as DateTime));
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4.landscape,
@@ -93,33 +105,14 @@ class PdfReportService {
           _buildHeader('Corte de Caja General', dateRangeLabel, image),
           pw.SizedBox(height: 20),
           _buildSummaryCard([
-            'Ventas Totales: ${_currencyFormat.format(totalGeneral)}',
-            'Cobrado: ${_currencyFormat.format(cobrado)}',
-            'Pendiente por Cobrar: ${_currencyFormat.format(pendiente)}',
-            'Ventas en Sucursal: ${_currencyFormat.format(totalLocal)}',
-            'Ventas a Domicilio: ${_currencyFormat.format(totalDomicilio)}',
-            'En Transferencia: ${_currencyFormat.format(totalTransferencia)}',
-            'Abonos: ${_currencyFormat.format(totalAbonosExtra)}',
-            'Gastos (Salidas): -${_currencyFormat.format(totalGastos)}',
-            'Efectivo Final en Caja: ${_currencyFormat.format(totalEfectivo)}',
-            'Tickets Generados: $totalTickets',
+            'Vendí: ${_currencyFormat.format(totalGeneral)}',
+            'Gasté: ${_currencyFormat.format(totalGastos)}',
+            'Me Deben: ${_currencyFormat.format(pendiente)}',
           ]),
           pw.SizedBox(height: 20),
-          pw.Text('Detalle de Ventas', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+          pw.Text('Últimos Movimientos', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 10),
-          _buildTicketsTable(tickets),
-          if (abonosExtra.isNotEmpty) ...[
-            pw.SizedBox(height: 20),
-            pw.Text('Abonos Recibidos (Anteriores)', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
-            pw.SizedBox(height: 10),
-            _buildAbonosTable(abonosExtra, fetchedTickets: fetchedTickets),
-          ],
-          if (gastos.isNotEmpty) ...[
-            pw.SizedBox(height: 20),
-            pw.Text('Gastos Registrados (Salidas de Dinero)', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.red800)),
-            pw.SizedBox(height: 10),
-            _buildGastosTable(gastos),
-          ]
+          _buildMovimientosGeneralTable(movimientos),
         ],
       ),
     );
@@ -456,6 +449,48 @@ class PdfReportService {
         4: const pw.FlexColumnWidth(1.5),
         5: const pw.FlexColumnWidth(1.5),
       },
+    );
+  }
+
+  static pw.Widget _buildMovimientosGeneralTable(List<Map<String, dynamic>> movimientos) {
+    if (movimientos.isEmpty) return pw.Text('No hay movimientos en este periodo.');
+    
+    final data = movimientos.map((mov) {
+      final fechaStr = _dateFormat.format(mov['fecha'] as DateTime);
+      final tipo = mov['tipo'] as String;
+      final nombre = mov['nombre'] as String;
+      final estado = mov['estado'] as String;
+      final monto = mov['monto'] as double;
+      
+      String detalle = tipo;
+      if (tipo == 'Venta') {
+        final subtipo = mov['subtipo'];
+        final metodo = mov['metodo'];
+        detalle = 'Venta en $subtipo • $metodo';
+      }
+
+      String montoStr = _currencyFormat.format(monto);
+      if (tipo == 'Gasto') {
+        montoStr = '-$montoStr';
+      }
+
+      return [
+        fechaStr,
+        nombre,
+        detalle,
+        estado == 'Cancelado' ? 'Cancelado' : 'Aprobado',
+        montoStr,
+      ];
+    }).toList();
+
+    return pw.TableHelper.fromTextArray(
+      headers: ['Fecha/Hora', 'Concepto/Cliente', 'Detalle', 'Estado', 'Monto'],
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
+      rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
+      cellAlignment: pw.Alignment.centerLeft,
+      cellStyle: const pw.TextStyle(fontSize: 9),
+      data: data,
     );
   }
 

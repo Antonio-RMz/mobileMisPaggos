@@ -99,7 +99,7 @@ class PdfReportService {
             'Ventas en Sucursal: ${_currencyFormat.format(totalLocal)}',
             'Ventas a Domicilio: ${_currencyFormat.format(totalDomicilio)}',
             'En Transferencia: ${_currencyFormat.format(totalTransferencia)}',
-            'Abonos Anteriores: ${_currencyFormat.format(totalAbonosExtra)}',
+            'Abonos: ${_currencyFormat.format(totalAbonosExtra)}',
             'Gastos (Salidas): -${_currencyFormat.format(totalGastos)}',
             'Efectivo Final en Caja: ${_currencyFormat.format(totalEfectivo)}',
             'Tickets Generados: $totalTickets',
@@ -237,7 +237,7 @@ class PdfReportService {
           _buildRepartidorTicketsTable(tickets),
           if (abonosExtra.isNotEmpty) ...[
             pw.SizedBox(height: 20),
-            pw.Text('Abonos Cobrados (Anteriores)', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
+            pw.Text('Abonos Cobrados', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
             pw.SizedBox(height: 10),
             _buildAbonosTable(abonosExtra, fetchedTickets: fetchedTickets),
           ]

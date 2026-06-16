@@ -653,12 +653,15 @@ class _VentasListScreenState extends State<VentasListScreen> {
     double totalAbonado = 0;
     double totalPendiente = 0;
     
+    List<String> ticketIds = [];
+    
     for (var t in tickets) {
       if (t.estadoEntrega != 'Cancelado') {
         totalVentas += t.totalVenta;
         totalAbonado += t.totalAbonado;
         if (!t.pagoRepartidorConfirmado && t.saldoRestante > 0) {
           totalPendiente += t.saldoRestante;
+          ticketIds.add(t.id);
         }
       }
     }
@@ -709,7 +712,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => _mostrarDialogoAbonoRepartidor(context, _filtroRepartidor, totalPendiente),
+                onPressed: () => _mostrarDialogoAbonoRepartidor(context, _filtroRepartidor, totalPendiente, ticketIds),
                 icon: const Icon(LucideIcons.banknote, color: Colors.white, size: 20),
                 label: const Text('Abonar Dinero', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
@@ -725,7 +728,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
     );
   }
 
-  void _mostrarDialogoAbonoRepartidor(BuildContext contextOriginal, String repartidorNombre, double totalDeuda) {
+  void _mostrarDialogoAbonoRepartidor(BuildContext contextOriginal, String repartidorNombre, double totalDeuda, List<String> ticketIds) {
     final TextEditingController abonoCtrl = TextEditingController();
     showDialog(
       context: contextOriginal,
@@ -785,7 +788,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
                             
                             try {
                               final firebaseService = Provider.of<FirebaseService>(safeContext, listen: false);
-                              await firebaseService.registrarAbonoRepartidor(repartidorNombre, monto);
+                              await firebaseService.registrarAbonoRepartidor(repartidorNombre, monto, ticketIdsToPay: ticketIds);
                               if (safeContext.mounted) {
                                 Navigator.pop(safeContext); // cerrar loading
                                 OverlayHelper.showSuccess(safeContext, message: 'Abono registrado exitosamente');

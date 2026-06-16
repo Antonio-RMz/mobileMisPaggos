@@ -871,7 +871,7 @@ class FirebaseService {
   // REPORTES / CORTE DE CAJA
   // =========================================================================
 
-  Future<void> registrarAbonoRepartidor(String repartidorNombre, double monto) async {
+  Future<void> registrarAbonoRepartidor(String repartidorNombre, double monto, {List<String>? ticketIdsToPay}) async {
     final batch = FirebaseFirestore.instance.batch();
     
     // Obtener los tickets del repartidor que deba a caja
@@ -887,6 +887,12 @@ class FirebaseService {
           return esMismoRepartidor && esPendiente;
         })
         .toList();
+
+        .toList();
+
+    if (ticketIdsToPay != null && ticketIdsToPay.isNotEmpty) {
+      tickets = tickets.where((t) => ticketIdsToPay.contains(t.id)).toList();
+    }
 
     // Ordenar por fecha (los más antiguos primero)
     tickets.sort((a, b) => (a.fecha ?? Timestamp.now()).compareTo(b.fecha ?? Timestamp.now()));

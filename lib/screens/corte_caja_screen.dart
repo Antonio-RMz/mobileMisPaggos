@@ -245,7 +245,6 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
               }
             );
           }
-          }
         ),
       ),
     );
@@ -314,18 +313,18 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
 
                 try {
                   Navigator.pop(ctxGasto);
-                  OverlayHelper.showLoadingOverlay(contextOriginal);
+                  showDialog(context: contextOriginal, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
                   
                   final fireService = Provider.of<FirebaseService>(contextOriginal, listen: false);
                   await fireService.registrarGasto(concepto, monto);
 
                   if (contextOriginal.mounted) {
-                    OverlayHelper.hideLoadingOverlay(contextOriginal);
+                    Navigator.of(contextOriginal, rootNavigator: true).pop();
                     ScaffoldMessenger.of(contextOriginal).showSnackBar(const SnackBar(content: Text('Gasto registrado correctamente')));
                   }
                 } catch (e) {
                   if (contextOriginal.mounted) {
-                    OverlayHelper.hideLoadingOverlay(contextOriginal);
+                    Navigator.of(contextOriginal, rootNavigator: true).pop();
                     ScaffoldMessenger.of(contextOriginal).showSnackBar(SnackBar(content: Text('Error: $e')));
                   }
                 }
@@ -339,7 +338,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
     );
   }
 
-  void _mostrarDialogoAbonoRepartidor(BuildContext contextOriginal, String repartidorNombre, double totalDeuda) {
+  void _mostrarDialogoAbonoRepartidor(BuildContext contextOriginal, String repartidorNombre, double totalDeuda, List<String> ticketIds) {
     final TextEditingController abonoCtrl = TextEditingController();
     showDialog(
       context: contextOriginal,
@@ -398,7 +397,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                             showDialog(context: safeContext, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
                             
                             try {
-                              await _firebaseService.registrarAbonoRepartidor(repartidorNombre, monto);
+                              await _firebaseService.registrarAbonoRepartidor(repartidorNombre, monto, ticketIdsToPay: ticketIds);
                               if (safeContext.mounted) {
                                 Navigator.pop(safeContext); // cerrar loading
                                 OverlayHelper.showSuccess(safeContext, message: 'Entrega registrada exitosamente');
@@ -538,7 +537,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                         children: [
                           const Icon(LucideIcons.clock, size: 16, color: Colors.orange),
                           const SizedBox(width: 4),
-                          Text('Abonos Anteriores: ${_currencyFormat.format(totalAbonosExtra)}', style: const TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.bold)),
+                          Text('Abonos: ${_currencyFormat.format(totalAbonosExtra)}', style: const TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ],
@@ -563,7 +562,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                   icon: const Icon(LucideIcons.arrowDownCircle, color: Colors.white),
                   label: const Text('Registrar Salida de Dinero', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade700,
+                    backgroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -579,7 +578,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                   icon: const Icon(LucideIcons.printer, color: Colors.white),
                   label: const Text('Generar PDF Corte General', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
+                    backgroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -595,7 +594,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                   icon: const Icon(LucideIcons.fileText, color: Colors.white),
                   label: const Text('Generar PDF Productos Vendidos', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accent,
+                    backgroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -625,7 +624,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                   icon: const Icon(LucideIcons.users, color: Colors.white),
                   label: const Text('Generar PDF Reporte Deudores', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade600,
+                    backgroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -829,7 +828,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Abonos Anteriores:', style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600)),
+                            const Text('Abonos:', style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600)),
                             Text(_currencyFormat.format(abonosCobrados), style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
                           ],
                         )

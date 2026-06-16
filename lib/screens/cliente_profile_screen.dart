@@ -452,6 +452,7 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
                 }
               }
             },
+          ),
           )
         ],
       ),

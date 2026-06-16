@@ -462,11 +462,11 @@ class PdfReportService {
       final estado = mov['estado'] as String;
       final monto = mov['monto'] as double;
       
-      String detalle = tipo;
+      String subtipo = '-';
+      String metodo = '-';
       if (tipo == 'Venta') {
-        final subtipo = mov['subtipo'];
-        final metodo = mov['metodo'];
-        detalle = 'Venta en $subtipo\n$metodo';
+        subtipo = mov['subtipo'] ?? '-';
+        metodo = mov['metodo'] ?? '-';
       }
 
       String montoStr = _currencyFormat.format(monto);
@@ -476,30 +476,26 @@ class PdfReportService {
       
       final obj = mov['obj'];
       String folioId = '-';
-      String cobrador = '-';
       String saldo = '-';
       
       if (tipo == 'Venta') {
         final t = obj as Ticket;
         folioId = t.folio.isNotEmpty ? t.folio : 'N/A';
-        cobrador = t.cobradoPor ?? t.createBy ?? '-';
         if (t.saldoRestante > 0) saldo = _currencyFormat.format(t.saldoRestante);
       } else if (tipo == 'Abono') {
         final a = obj as Abono;
         folioId = a.ticketId ?? 'General';
-        cobrador = (a.repartidorId != null && a.repartidorId!.isNotEmpty) ? a.repartidorId! : a.createBy;
       } else if (tipo == 'Gasto') {
-        final g = obj as Gasto;
         folioId = 'N/A';
-        cobrador = g.createBy;
       }
 
       return [
         fechaStr,
         folioId,
         nombre,
-        detalle,
-        cobrador,
+        tipo,
+        subtipo,
+        metodo,
         saldo,
         estado == 'Cancelado' ? 'Cancelado' : 'Aprobado',
         montoStr,
@@ -507,7 +503,7 @@ class PdfReportService {
     }).toList();
 
     return pw.TableHelper.fromTextArray(
-      headers: ['Fecha', 'Folio / ID', 'Concepto/Cliente', 'Detalle', 'Registrado Por', 'Saldo Pend.', 'Estado', 'Monto'],
+      headers: ['Fecha', 'Folio/ID', 'Cliente/Concepto', 'Tipo', 'Entrega', 'Método', 'Saldo Pend.', 'Estado', 'Monto'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 8),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
       rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),

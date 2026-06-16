@@ -855,15 +855,6 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                             Text(_currencyFormat.format(abonosCobrados), style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
                           ],
                         )
-                      ],
-                      if (totalTransferencia > 0) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text('(*Incluye ${_currencyFormat.format(totalTransferencia)} por Transferencia)', style: const TextStyle(color: Colors.blue, fontSize: 12, fontStyle: FontStyle.italic)),
-                          ],
-                        ),
                       ]
                     ],
                   ),

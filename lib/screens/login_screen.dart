@@ -164,8 +164,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
               // Content
               SafeArea(
-                child: Column(
-                  children: [
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 500),
+                    child: Column(
+                      children: [
                     SizedBox(height: size.height * 0.05),
                     // Logo or Avatar Area
                     Center(
@@ -328,6 +331,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
               ),
+            ),
+          ),
             ],
           ),
         ),

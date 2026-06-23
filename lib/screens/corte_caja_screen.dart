@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import '../services/firebase_service.dart';
 import '../services/pdf_report_service.dart';
@@ -105,46 +105,49 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
           elevation: 0,
         ),
         body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(LucideIcons.lock, size: 80, color: AppTheme.primary),
-                const SizedBox(height: 24),
-                const Text('Esta sección contiene información sensible.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey)),
-                const SizedBox(height: 32),
-                TextField(
-                  controller: _pinCtrl,
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 24, letterSpacing: 8),
-                  decoration: InputDecoration(
-                    hintText: '****',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(LucideIcons.lock, size: 80, color: AppTheme.primary),
+                  const SizedBox(height: 24),
+                  const Text('Esta sección contiene información sensible.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey)),
+                  const SizedBox(height: 32),
+                  TextField(
+                    controller: _pinCtrl,
+                    obscureText: true,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 24, letterSpacing: 8),
+                    decoration: InputDecoration(
+                      hintText: '****',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () {
+                      if (_pinCtrl.text == '1234') {
+                        setState(() {
+                          _isUnlocked = true;
+                        });
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN incorrecto'), backgroundColor: Colors.red));
+                        _pinCtrl.clear();
+                      }
+                    },
+                    child: const Text('Desbloquear Reportes', style: TextStyle(fontSize: 18, color: Colors.white)),
                   ),
-                  onPressed: () {
-                    if (_pinCtrl.text == '1234') {
-                      setState(() {
-                        _isUnlocked = true;
-                      });
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN incorrecto'), backgroundColor: Colors.red));
-                      _pinCtrl.clear();
-                    }
-                  },
-                  child: const Text('Desbloquear Reportes', style: TextStyle(fontSize: 18, color: Colors.white)),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -487,225 +490,320 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
     // Sort descending by date
     movimientos.sort((a, b) => (b['fecha'] as DateTime).compareTo(a['fecha'] as DateTime));
 
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppTheme.primary.withOpacity(0.5), width: 2),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    const Text('Resumen General', style: TextStyle(color: AppTheme.textLight, fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    final bool isWide = MediaQuery.of(context).size.width >= 600;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900),
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppTheme.primary.withOpacity(0.5), width: 2),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+                      ],
+                    ),
+                    child: Column(
                       children: [
-                        Column(
+                        const Text('Resumen General', style: TextStyle(color: AppTheme.textLight, fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            const Text('Vendí', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
-                            Text(_currencyFormat.format(totalVendido), style: const TextStyle(color: Colors.blue, fontSize: 18, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        Container(height: 40, width: 2, color: Colors.grey.shade300),
-                        Column(
-                          children: [
-                            const Text('Gasté', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
-                            Text(_currencyFormat.format(totalGastos), style: const TextStyle(color: Colors.red, fontSize: 18, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        Container(height: 40, width: 2, color: Colors.grey.shade300),
-                        Column(
-                          children: [
-                            const Text('Me Deben', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
-                            Text(_currencyFormat.format(totalPorCobrar), style: const TextStyle(color: Colors.orange, fontSize: 18, fontWeight: FontWeight.bold)),
+                            Column(
+                              children: [
+                                const Text('Vendí', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
+                                Text(_currencyFormat.format(totalVendido), style: const TextStyle(color: Colors.blue, fontSize: 18, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            Container(height: 40, width: 2, color: Colors.grey.shade300),
+                            Column(
+                              children: [
+                                const Text('Gasté', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
+                                Text(_currencyFormat.format(totalGastos), style: const TextStyle(color: Colors.red, fontSize: 18, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            Container(height: 40, width: 2, color: Colors.grey.shade300),
+                            Column(
+                              children: [
+                                const Text('Me Deben', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
+                                Text(_currencyFormat.format(totalPorCobrar), style: const TextStyle(color: Colors.orange, fontSize: 18, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
                           ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: ElevatedButton.icon(
-                  onPressed: () => _mostrarDialogoRegistrarGasto(context),
-                  icon: const Icon(LucideIcons.arrowDownCircle, color: Colors.white),
-                  label: const Text('Registrar Salida de Dinero', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade600,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    PdfReportService.generateCorteGeneralPdf(context, tickets, abonos, gastos, _filtro);
-                  },
-                  icon: const Icon(LucideIcons.printer, color: Colors.white),
-                  label: const Text('Generar PDF Corte General', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    PdfReportService.generateProductosVendidosPdf(context, tickets, _filtro);
-                  },
-                  icon: const Icon(LucideIcons.fileText, color: Colors.white),
-                  label: const Text('Generar PDF Productos Vendidos', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-                    try {
-                      final fireService = Provider.of<FirebaseService>(context, listen: false);
-                      final ticketsDeuda = await fireService.getAllTicketsConDeudaFuture();
-                      final abonosFut = await fireService.getAllAbonosFuture();
-                      if (context.mounted) Navigator.pop(context);
-                      if (context.mounted) {
-                        PdfReportService.generateReporteDeudoresPdf(context, ticketsDeuda, abonosFut);
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                      }
-                    }
-                  },
-                  icon: const Icon(LucideIcons.users, color: Colors.white),
-                  label: const Text('Generar PDF Reporte Deudores', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
-                child: Text('Últimos Movimientos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-              ),
-            ],
-          ),
-        ),
-        if (movimientos.isEmpty)
-          const SliverFillRemaining(
-            child: Center(child: Text('No hay movimientos en este rango de fechas.', style: TextStyle(color: Colors.grey, fontSize: 16))),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final mov = movimientos[index];
-                  final String tipo = mov['tipo'];
-                  final String subtipo = mov['subtipo'];
-                  final String metodo = mov['metodo'];
-                  final double monto = mov['monto'];
-                  final String estado = mov['estado'];
-                  final String nombre = mov['nombre'];
-                  
-                  IconData iconData = LucideIcons.store;
-                  Color iconColor = Colors.blue;
-                  Color bgColor = Colors.blue.shade100;
-                  
-                  if (tipo == 'Venta') {
-                    if (subtipo == 'Domicilio') {
-                      iconData = LucideIcons.bike;
-                      iconColor = Colors.orange;
-                      bgColor = Colors.orange.shade100;
-                    } else {
-                      iconData = LucideIcons.store;
-                      iconColor = Colors.blue;
-                      bgColor = Colors.blue.shade100;
-                    }
-                  } else if (tipo == 'Abono') {
-                    iconData = LucideIcons.banknote;
-                    iconColor = Colors.green;
-                    bgColor = Colors.green.shade100;
-                  } else if (tipo == 'Gasto') {
-                    iconData = LucideIcons.minusCircle;
-                    iconColor = Colors.red;
-                    bgColor = Colors.red.shade100;
-                  }
-
-                  String subtitle = tipo;
-                  if (tipo == 'Venta') {
-                    subtitle = 'Venta en $subtipo • $metodo';
-                  }
-
-                  return Card(
-                    elevation: 0,
-                    margin: const EdgeInsets.only(bottom: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: Colors.grey.shade300, width: 1.5),
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      leading: CircleAvatar(
-                        radius: 24,
-                        backgroundColor: bgColor,
-                        child: Icon(iconData, color: iconColor, size: 24),
-                      ),
-                      title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      subtitle: Text(subtitle, style: const TextStyle(fontSize: 14)),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                  if (isWide) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Row(
                         children: [
-                          Text(
-                            (tipo == 'Gasto' ? '-' : '') + _currencyFormat.format(monto), 
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold, 
-                              fontSize: 16,
-                              color: tipo == 'Gasto' ? Colors.red : (tipo == 'Abono' ? Colors.green : AppTheme.textDark)
-                            )
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _mostrarDialogoRegistrarGasto(context),
+                              icon: const Icon(LucideIcons.arrowDownCircle, color: Colors.white),
+                              label: const Text('Registrar Salida', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade600,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
                           ),
-                          if (estado == 'Cancelado')
-                            const Text('Cancelado', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                PdfReportService.generateCorteGeneralPdf(context, tickets, abonos, gastos, _filtro);
+                              },
+                              icon: const Icon(LucideIcons.printer, color: Colors.white),
+                              label: const Text('PDF Corte General', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  );
-                },
-                childCount: tickets.length,
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                PdfReportService.generateProductosVendidosPdf(context, tickets, _filtro);
+                              },
+                              icon: const Icon(LucideIcons.fileText, color: Colors.white),
+                              label: const Text('PDF Prod. Vendidos', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
+                                showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                                try {
+                                  final fireService = Provider.of<FirebaseService>(context, listen: false);
+                                  final ticketsDeuda = await fireService.getAllTicketsConDeudaFuture();
+                                  final abonosFut = await fireService.getAllAbonosFuture();
+                                  if (context.mounted) Navigator.pop(context);
+                                  if (context.mounted) {
+                                    PdfReportService.generateReporteDeudoresPdf(context, ticketsDeuda, abonosFut);
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                  }
+                                }
+                              },
+                              icon: const Icon(LucideIcons.users, color: Colors.white),
+                              label: const Text('PDF Deudores', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: ElevatedButton.icon(
+                        onPressed: () => _mostrarDialogoRegistrarGasto(context),
+                        icon: const Icon(LucideIcons.arrowDownCircle, color: Colors.white),
+                        label: const Text('Registrar Salida de Dinero', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade600,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          PdfReportService.generateCorteGeneralPdf(context, tickets, abonos, gastos, _filtro);
+                        },
+                        icon: const Icon(LucideIcons.printer, color: Colors.white),
+                        label: const Text('Generar PDF Corte General', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          PdfReportService.generateProductosVendidosPdf(context, tickets, _filtro);
+                        },
+                        icon: const Icon(LucideIcons.fileText, color: Colors.white),
+                        label: const Text('Generar PDF Productos Vendidos', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                          try {
+                            final fireService = Provider.of<FirebaseService>(context, listen: false);
+                            final ticketsDeuda = await fireService.getAllTicketsConDeudaFuture();
+                            final abonosFut = await fireService.getAllAbonosFuture();
+                            if (context.mounted) Navigator.pop(context);
+                            if (context.mounted) {
+                              PdfReportService.generateReporteDeudoresPdf(context, ticketsDeuda, abonosFut);
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                            }
+                          }
+                        },
+                        icon: const Icon(LucideIcons.users, color: Colors.white),
+                        label: const Text('Generar PDF Reporte Deudores', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                    child: Text('Últimos Movimientos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                  ),
+                ],
               ),
             ),
-          ),
-      ],
+            if (movimientos.isEmpty)
+              const SliverFillRemaining(
+                child: Center(child: Text('No hay movimientos en este rango de fechas.', style: TextStyle(color: Colors.grey, fontSize: 16))),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final mov = movimientos[index];
+                      final String tipo = mov['tipo'];
+                      final String subtipo = mov['subtipo'];
+                      final String metodo = mov['metodo'];
+                      final double monto = mov['monto'];
+                      final String estado = mov['estado'];
+                      final String nombre = mov['nombre'];
+                      
+                      IconData iconData = LucideIcons.store;
+                      Color iconColor = Colors.blue;
+                      Color bgColor = Colors.blue.shade100;
+                      
+                      if (tipo == 'Venta') {
+                        if (subtipo == 'Domicilio') {
+                          iconData = LucideIcons.bike;
+                          iconColor = Colors.orange;
+                          bgColor = Colors.orange.shade100;
+                        } else {
+                          iconData = LucideIcons.store;
+                          iconColor = Colors.blue;
+                          bgColor = Colors.blue.shade100;
+                        }
+                      } else if (tipo == 'Abono') {
+                        iconData = LucideIcons.banknote;
+                        iconColor = Colors.green;
+                        bgColor = Colors.green.shade100;
+                      } else if (tipo == 'Gasto') {
+                        iconData = LucideIcons.minusCircle;
+                        iconColor = Colors.red;
+                        bgColor = Colors.red.shade100;
+                      }
+
+                      String subtitle = tipo;
+                      if (tipo == 'Venta') {
+                        subtitle = 'Venta en $subtipo • $metodo';
+                      }
+
+                      return Card(
+                        elevation: 0,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          leading: CircleAvatar(
+                            radius: 24,
+                            backgroundColor: bgColor,
+                            child: Icon(iconData, color: iconColor, size: 24),
+                          ),
+                          title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          subtitle: Text(subtitle, style: const TextStyle(fontSize: 14)),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                (tipo == 'Gasto' ? '-' : '') + _currencyFormat.format(monto), 
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold, 
+                                  fontSize: 16,
+                                  color: tipo == 'Gasto' ? Colors.red : (tipo == 'Abono' ? Colors.green : AppTheme.textDark)
+                                )
+                              ),
+                              if (estado == 'Cancelado')
+                                const Text('Cancelado', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    childCount: movimientos.length,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

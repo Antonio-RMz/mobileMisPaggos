@@ -1175,51 +1175,56 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
               ],
             ),
           ),
-          body: Column(
-            children: [
-              // Buscador Flotante
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: TextField(
-                  onChanged: (val) {
-                    setState(() {
-                      _searchQuery = val.toLowerCase();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Buscar producto...',
-                    prefixIcon: const Icon(Icons.search, color: AppTheme.textLight),
-                    filled: true,
-                    fillColor: AppTheme.cardHighlight,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16), 
-                      borderSide: BorderSide.none,
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                children: [
+                  // Buscador Flotante
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: TextField(
+                      onChanged: (val) {
+                        setState(() {
+                          _searchQuery = val.toLowerCase();
+                        });
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Buscar producto...',
+                        prefixIcon: const Icon(Icons.search, color: AppTheme.textLight),
+                        filled: true,
+                        fillColor: AppTheme.cardHighlight,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16), 
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   ),
-                ),
+                  
+                  // Catálogo de Productos
+                  Expanded(
+                    child: StreamBuilder<List<Producto>>(
+                      stream: _productosStream,
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        final productos = snapshot.data!;
+                        return TabBarView(
+                          children: [
+                            _buildProductList(cart, context, productos, isCarniceria: false),
+                            _buildProductList(cart, context, productos, isCarniceria: true),
+                          ],
+                        );
+                      }
+                    ),
+                  ),
+                ],
               ),
-              
-              // Catálogo de Productos
-              Expanded(
-                child: StreamBuilder<List<Producto>>(
-                  stream: _productosStream,
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final productos = snapshot.data!;
-                    return TabBarView(
-                      children: [
-                        _buildProductList(cart, context, productos, isCarniceria: false),
-                        _buildProductList(cart, context, productos, isCarniceria: true),
-                      ],
-                    );
-                  }
-                ),
-              ),
-            ],
+            ),
           ),
           bottomNavigationBar: cart.items.isEmpty 
             ? null 
@@ -1230,28 +1235,39 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                     color: Colors.white,
                     boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
                   ),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    onPressed: () => _mostrarCarritoBottomSheet(context, cart),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: SizedBox(
+                          width: MediaQuery.of(context).size.width - 32,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primary,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            onPressed: () => _mostrarCarritoBottomSheet(context, cart),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text('${cart.items.length}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                ),
+                                const Text('Ver Carrito', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                                Text(_currencyFormat.format(cart.totalCart), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                              ],
+                            ),
                           ),
-                          child: Text('${cart.items.length}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                         ),
-                        const Text('Ver Carrito', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                        Text(_currencyFormat.format(cart.totalCart), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),

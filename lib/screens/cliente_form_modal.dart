@@ -18,15 +18,7 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
   FirebaseService get _firebaseService => Provider.of<FirebaseService>(context, listen: false);
 
   final TextEditingController _nombreCtrl = TextEditingController();
-  final TextEditingController _apPaternoCtrl = TextEditingController();
-  final TextEditingController _apMaternoCtrl = TextEditingController();
   final TextEditingController _celularCtrl = TextEditingController();
-  final TextEditingController _telefonoCtrl = TextEditingController();
-  final TextEditingController _correoCtrl = TextEditingController();
-  final TextEditingController _observacionesCtrl = TextEditingController();
-  final TextEditingController _direccionCtrl = TextEditingController();
-  final TextEditingController _apodoCtrl = TextEditingController();
-  final TextEditingController _referenciasDireccionCtrl = TextEditingController();
 
   final List<int> _pastelColors = [
     0xFFA7F3D0, // Verde pastel (emerald-200)
@@ -47,32 +39,19 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
     super.initState();
     if (widget.cliente != null) {
       _nombreCtrl.text = widget.cliente!.nombre;
-      _apPaternoCtrl.text = widget.cliente!.apPaterno;
-      _apMaternoCtrl.text = widget.cliente!.apMaterno;
       _celularCtrl.text = widget.cliente!.celular;
-      _telefonoCtrl.text = widget.cliente!.telefono;
-      _correoCtrl.text = widget.cliente!.correo;
-      _observacionesCtrl.text = widget.cliente!.observaciones;
-      _direccionCtrl.text = widget.cliente!.direccion;
-      _apodoCtrl.text = widget.cliente!.apodo;
-      _referenciasDireccionCtrl.text = widget.cliente!.referenciasDireccion;
       _selectedColor = widget.cliente!.colorPerfil;
       _isDistinguido = widget.cliente!.isDistinguido;
+    } else {
+      // Asignar un color aleatorio si es un nuevo cliente
+      _selectedColor = _pastelColors[DateTime.now().millisecond % _pastelColors.length];
     }
   }
 
   @override
   void dispose() {
     _nombreCtrl.dispose();
-    _apPaternoCtrl.dispose();
-    _apMaternoCtrl.dispose();
     _celularCtrl.dispose();
-    _telefonoCtrl.dispose();
-    _correoCtrl.dispose();
-    _observacionesCtrl.dispose();
-    _direccionCtrl.dispose();
-    _apodoCtrl.dispose();
-    _referenciasDireccionCtrl.dispose();
     super.dispose();
   }
 
@@ -86,30 +65,14 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
         if (widget.cliente == null) {
           final nuevoCliente = Cliente(
             nombre: _nombreCtrl.text.trim(),
-            apPaterno: _apPaternoCtrl.text.trim(),
-            apMaterno: _apMaternoCtrl.text.trim(),
             celular: _celularCtrl.text.trim(),
-            correo: _correoCtrl.text.trim(),
-            telefono: _telefonoCtrl.text.trim(),
-            observaciones: _observacionesCtrl.text.trim(),
-            direccion: _direccionCtrl.text.trim(),
-            apodo: _apodoCtrl.text.trim(),
-            referenciasDireccion: _referenciasDireccionCtrl.text.trim(),
             colorPerfil: _selectedColor,
             isDistinguido: _isDistinguido,
           );
           await _firebaseService.addCliente(nuevoCliente);
         } else {
           widget.cliente!.nombre = _nombreCtrl.text.trim();
-          widget.cliente!.apPaterno = _apPaternoCtrl.text.trim();
-          widget.cliente!.apMaterno = _apMaternoCtrl.text.trim();
           widget.cliente!.celular = _celularCtrl.text.trim();
-          widget.cliente!.correo = _correoCtrl.text.trim();
-          widget.cliente!.telefono = _telefonoCtrl.text.trim();
-          widget.cliente!.observaciones = _observacionesCtrl.text.trim();
-          widget.cliente!.direccion = _direccionCtrl.text.trim();
-          widget.cliente!.apodo = _apodoCtrl.text.trim();
-          widget.cliente!.referenciasDireccion = _referenciasDireccionCtrl.text.trim();
           widget.cliente!.colorPerfil = _selectedColor;
           widget.cliente!.isDistinguido = _isDistinguido;
           await _firebaseService.updateCliente(widget.cliente!);
@@ -228,24 +191,14 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
                     ),
                     const SizedBox(height: 16),
 
-                    _buildLabel('Apellido Paterno'),
+                    _buildLabel('Celular'),
                     _buildTextField(
-                      controller: _apPaternoCtrl,
-                      hintText: 'Ej. Valdés',
-                      icon: Icons.person_outline,
+                      controller: _celularCtrl,
+                      hintText: 'Ej. 55 1234 5678',
+                      icon: Icons.phone_android,
+                      keyboardType: TextInputType.phone,
+                      isRequired: true,
                     ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('Apellido Materno'),
-                    _buildTextField(
-                      controller: _apMaternoCtrl,
-                      hintText: 'Ej. Gómez',
-                      icon: Icons.person_outline,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('Color de Perfil'),
-                    _buildColorPicker(),
                     const SizedBox(height: 16),
 
                     SwitchListTile(
@@ -260,64 +213,6 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
                       },
                       activeColor: Colors.amber,
                       contentPadding: EdgeInsets.zero,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('Teléfono Móvil (Celular)'),
-                    _buildTextField(
-                      controller: _celularCtrl,
-                      hintText: '+52 55 1234 5678',
-                      icon: Icons.phone_android,
-                      keyboardType: TextInputType.phone,
-                      isRequired: true,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('Teléfono Fijo'),
-                    _buildTextField(
-                      controller: _telefonoCtrl,
-                      hintText: '55 9876 5432',
-                      icon: Icons.phone,
-                      keyboardType: TextInputType.phone,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('Correo Electrónico'),
-                    _buildTextField(
-                      controller: _correoCtrl,
-                      hintText: 'alejandro@empresa.com',
-                      icon: Icons.alternate_email,
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('Observaciones'),
-                    _buildTextField(
-                      controller: _observacionesCtrl,
-                      hintText: 'Información adicional...',
-                      icon: Icons.notes,
-                    ),
-                    _buildLabel('Apodo'),
-                    _buildTextField(
-                      controller: _apodoCtrl,
-                      hintText: 'Ej. Alex',
-                      icon: Icons.person_pin,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('Dirección'),
-                    _buildTextField(
-                      controller: _direccionCtrl,
-                      hintText: 'Calle, Número, Colonia...',
-                      icon: Icons.location_on_outlined,
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildLabel('Referencias de Dirección'),
-                    _buildTextField(
-                      controller: _referenciasDireccionCtrl,
-                      hintText: 'Entre calles, fachada, etc.',
-                      icon: Icons.map_outlined,
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -361,46 +256,7 @@ class _ClienteFormModalState extends State<ClienteFormModal> {
     );
   }
 
-  Widget _buildColorPicker() {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: _pastelColors.map((colorValue) {
-        final isSelected = _selectedColor == colorValue;
-        return GestureDetector(
-          onTap: () {
-            setState(() {
-              _selectedColor = colorValue;
-            });
-          },
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Color(colorValue),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isSelected ? AppTheme.slateBlue : Colors.transparent,
-                width: 3,
-              ),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: Color(colorValue).withOpacity(0.5),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      )
-                    ]
-                  : null,
-            ),
-            child: isSelected
-                ? const Icon(Icons.check, color: AppTheme.slateBlue, size: 20)
-                : null,
-          ),
-        );
-      }).toList(),
-    );
-  }
+
 
   Widget _buildTextField({
     required TextEditingController controller,

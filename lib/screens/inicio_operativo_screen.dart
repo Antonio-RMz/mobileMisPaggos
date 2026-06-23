@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 
@@ -44,14 +44,19 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
         onRefresh: () async {
           await context.read<DashboardProvider>().cargarMetricas();
         },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDeliveryStatus(context),
-            ],
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDeliveryStatus(context),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -76,6 +81,9 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
     return Consumer<DashboardProvider>(
       builder: (context, dashboard, child) {
         if (dashboard.isLoading) return const SizedBox();
+        final double screenWidth = MediaQuery.of(context).size.width;
+        final bool isWide = screenWidth >= 600;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -84,22 +92,50 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textDark),
             ),
             const SizedBox(height: 16),
-            _buildStatusCard(
-              context: context,
-              title: 'Ventas de Hoy',
-              count: dashboard.ventasHoyCount,
-              color: AppTheme.accent,
-              icon: LucideIcons.shoppingBag,
-            ),
-
-            _buildStatusCard(
-              context: context,
-              title: 'Canceladas',
-              count: dashboard.entregasCanceladas,
-              color: Colors.redAccent,
-              icon: LucideIcons.xCircle,
-              isClickable: false,
-            ),
+            isWide
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatusCard(
+                          context: context,
+                          title: 'Ventas de Hoy',
+                          count: dashboard.ventasHoyCount,
+                          color: AppTheme.accent,
+                          icon: LucideIcons.shoppingBag,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildStatusCard(
+                          context: context,
+                          title: 'Canceladas',
+                          count: dashboard.entregasCanceladas,
+                          color: Colors.redAccent,
+                          icon: LucideIcons.xCircle,
+                          isClickable: false,
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      _buildStatusCard(
+                        context: context,
+                        title: 'Ventas de Hoy',
+                        count: dashboard.ventasHoyCount,
+                        color: AppTheme.accent,
+                        icon: LucideIcons.shoppingBag,
+                      ),
+                      _buildStatusCard(
+                        context: context,
+                        title: 'Canceladas',
+                        count: dashboard.entregasCanceladas,
+                        color: Colors.redAccent,
+                        icon: LucideIcons.xCircle,
+                        isClickable: false,
+                      ),
+                    ],
+                  ),
           ],
         );
       },

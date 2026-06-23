@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:math';
 import '../models/cliente_model.dart';
 import '../services/firebase_service.dart';
@@ -342,6 +342,61 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
                   }).toList();
                 }
 
+                final bool isWide = MediaQuery.of(context).size.width >= 600;
+
+                if (isWide) {
+                  return GridView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 450,
+                      mainAxisExtent: 185,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    itemCount: clientes.length + 1 + (widget.isSelectingForOrder ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == 0 && widget.isSelectingForOrder) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 0.0),
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (context) => const NuevoPedidoScreen()),
+                              );
+                            },
+                            icon: const Icon(Icons.storefront, color: Colors.white),
+                            label: const Text(
+                              'Público en General',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.accent,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 2,
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      final actualIndex = widget.isSelectingForOrder ? index - 1 : index;
+
+                      if (actualIndex == clientes.length) {
+                        return _buildAddCard(context);
+                      }
+                      return _buildClienteCard(context, clientes[actualIndex], actualIndex);
+                    },
+                  );
+                }
+
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   itemCount: clientes.length + 1 + (widget.isSelectingForOrder ? 1 : 0),
@@ -410,8 +465,10 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
     final Color tiempoColor = tieneDeuda ? AppTheme.error : AppTheme.success;
     final IconData tiempoIcon = tieneDeuda ? LucideIcons.alertTriangle : LucideIcons.checkCircle;
 
+    final bool isWide = MediaQuery.of(context).size.width >= 600;
+
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: isWide ? const EdgeInsets.all(0) : const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: Colors.grey.withOpacity(0.15)),
@@ -553,42 +610,46 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
   }
 
   Widget _buildAddCard(BuildContext context) {
+    final bool isWide = MediaQuery.of(context).size.width >= 600;
     return GestureDetector(
       onTap: () => _mostrarModalAlta(context),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 80, top: 10),
-        padding: const EdgeInsets.all(24),
+        margin: isWide ? const EdgeInsets.all(0) : const EdgeInsets.only(bottom: 80, top: 10),
+        padding: EdgeInsets.all(isWide ? 16 : 24),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.withOpacity(0.2)),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(isWide ? 8 : 16),
               decoration: BoxDecoration(
                 color: AppTheme.backgroundLight,
                 shape: BoxShape.rectangle,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(LucideIcons.userPlus, color: AppTheme.accent, size: 28),
+              child: Icon(LucideIcons.userPlus, color: AppTheme.accent, size: isWide ? 22 : 28),
             ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: isWide ? 8 : 16),
+            Text(
               'Añadir Nuevo Cliente',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: isWide ? 14 : 16,
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textDark,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Expande tu red de negocios hoy\nmismo.',
+            SizedBox(height: isWide ? 4 : 8),
+            Text(
+              isWide 
+                  ? 'Expande tu red de negocios hoy.' 
+                  : 'Expande tu red de negocios hoy\nmismo.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: isWide ? 11 : 13,
                 color: AppTheme.textLight,
                 height: 1.4,
               ),

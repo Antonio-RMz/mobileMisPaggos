@@ -97,6 +97,19 @@ class FirebaseService {
     }
   }
 
+  /// Método para sincronizar/corregir la deuda total del cliente en Firestore
+  Future<void> sincronizarDeudaCliente(String clienteId, double trueDebt) async {
+    try {
+      await _clientesCollection.doc(clienteId).update({
+        'deuda_total': trueDebt,
+        'updateAt': Timestamp.now(),
+        'updateBy': 'Sistema (Auto-Sync)',
+      }).timeout(const Duration(seconds: 3));
+    } catch (e) {
+      print('Error en sincronizarDeudaCliente: $e');
+    }
+  }
+
   /// Método para eliminar un cliente (Delete)
   Future<void> deleteCliente(String id) async {
     try {

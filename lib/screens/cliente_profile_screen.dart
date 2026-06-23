@@ -456,248 +456,260 @@ class _ClienteProfileScreenState extends State<ClienteProfileScreen> {
           )
         ],
       ),
-      body: Column(
-        children: [
-          // Header del cliente
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 2))],
-            ),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Color(widget.cliente.colorPerfil),
-                  foregroundColor: AppTheme.slateBlue,
-                  child: Text(
-                    widget.cliente.iniciales,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
+      body: StreamBuilder<List<Ticket>>(
+        stream: _firebaseService.getTicketsByCliente(widget.cliente.id),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return const Center(child: Text('Error al cargar datos'));
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          
+          final tickets = snapshot.data ?? [];
+          
+          // Calcular la deuda real sumando el saldo restante de los tickets activos
+          double trueDebt = 0;
+          for (var t in tickets) {
+            if (t.estadoEntrega != 'Cancelado') {
+              trueDebt += t.saldoRestante;
+            }
+          }
+          
+          // Sincronizar automáticamente con Firestore en caso de discrepancias
+          if (snapshot.connectionState == ConnectionState.active && trueDebt != widget.cliente.deudaTotal) {
+            _firebaseService.sincronizarDeudaCliente(widget.cliente.id, trueDebt);
+            widget.cliente.deudaTotal = trueDebt;
+          }
+          
+          return Column(
+            children: [
+              // Header del cliente
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 2))],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  '${widget.cliente.nombre} ${widget.cliente.apPaterno}',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textDark),
-                ),
-                if (widget.cliente.telefono.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text('Tel: ${widget.cliente.telefono}', style: const TextStyle(color: Colors.grey)),
-                  ),
-                const SizedBox(height: 24),
-                
-                // Tarjeta de Deuda
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: widget.cliente.deudaTotal > 0 
-                        ? [Colors.red[400]!, Colors.red[700]!] 
-                        : [Colors.green[400]!, Colors.green[600]!],
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Color(widget.cliente.colorPerfil),
+                      foregroundColor: AppTheme.slateBlue,
+                      child: Text(
+                        widget.cliente.iniciales,
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (widget.cliente.deudaTotal > 0 ? Colors.red : Colors.green).withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      )
-                    ]
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 12),
+                    Text(
+                      '${widget.cliente.nombre} ${widget.cliente.apPaterno}',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+                    ),
+                    if (widget.cliente.telefono.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('Tel: ${widget.cliente.telefono}', style: const TextStyle(color: Colors.grey)),
+                      ),
+                    const SizedBox(height: 24),
+                    
+                    // Tarjeta de Deuda
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: widget.cliente.deudaTotal > 0 
+                            ? [Colors.red[400]!, Colors.red[700]!] 
+                            : [Colors.green[400]!, Colors.green[600]!],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (widget.cliente.deudaTotal > 0 ? Colors.red : Colors.green).withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          )
+                        ]
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Deuda Total', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                          SizedBox(height: 4),
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Deuda Total', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                              SizedBox(height: 4),
+                            ],
+                          ),
+                          Text(
+                            _currencyFormat.format(widget.cliente.deudaTotal),
+                            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                          ),
                         ],
                       ),
-                      Text(
-                        _currencyFormat.format(widget.cliente.deudaTotal),
-                        style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                if (widget.cliente.deudaTotal > 0)
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primary,
-                        side: const BorderSide(color: AppTheme.primary, width: 1.5),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      icon: const Icon(Icons.payments_outlined),
-                      label: const Text('Abonar a la Cuenta General', style: TextStyle(fontWeight: FontWeight.bold)),
-                      onPressed: _mostrarDialogoAbonoGeneral,
                     ),
-                  ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Historial de Tickets', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Lista de Tickets
-          Expanded(
-            child: StreamBuilder<List<Ticket>>(
-              stream: _firebaseService.getTicketsByCliente(widget.cliente.id),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) return const Center(child: Text('Error al cargar tickets'));
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                
-                final tickets = snapshot.data ?? [];
-                
-                if (tickets.isEmpty) {
-                  return const Center(child: Text('No hay historial de compras.', style: TextStyle(color: Colors.grey)));
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: tickets.length,
-                  itemBuilder: (context, index) {
-                    final t = tickets[index];
-                    final bool pagado = t.estado == 'Pagado';
-                    final String fechaStr = t.fecha != null ? DateFormat('dd MMM yyyy - hh:mm a').format(t.fecha!.toDate()) : 'Sin fecha';
-
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey[200]!)),
-                      elevation: 0,
-                      child: ExpansionTile(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        leading: CircleAvatar(
-                          backgroundColor: pagado ? Colors.green[50] : Colors.red[50],
-                          child: Icon(
-                            pagado ? Icons.check_circle : Icons.warning_rounded,
-                            color: pagado ? Colors.green : Colors.red,
+                    const SizedBox(height: 16),
+                    
+                    if (widget.cliente.deudaTotal > 0)
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.primary,
+                            side: const BorderSide(color: AppTheme.primary, width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
+                          icon: const Icon(Icons.payments_outlined),
+                          label: const Text('Abonar a la Cuenta General', style: TextStyle(fontWeight: FontWeight.bold)),
+                          onPressed: _mostrarDialogoAbonoGeneral,
                         ),
-                        title: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Ticket #${t.folio}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            Text(_currencyFormat.format(t.totalVenta), style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary, fontSize: 14)),
-                          ],
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            Text(fechaStr, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            if (!pagado && t.estadoEntrega != 'Cancelado')
-                              Text('Resta: ${_currencyFormat.format(t.saldoRestante)}', style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold)),
-                            if (t.estadoEntrega == 'Cancelado')
-                              Text('Cancelado: ${t.motivoCancelacion}', style: const TextStyle(fontSize: 12, color: Colors.red, fontStyle: FontStyle.italic)),
-                          ],
-                        ),
-                        children: [
-                          Container(
-                            color: Colors.grey[50],
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                      ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Historial de Tickets', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Lista de Tickets
+              Expanded(
+                child: tickets.isEmpty 
+                  ? const Center(child: Text('No hay historial de compras.', style: TextStyle(color: Colors.grey)))
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: tickets.length,
+                      itemBuilder: (context, index) {
+                        final t = tickets[index];
+                        final bool pagado = t.estado == 'Pagado';
+                        final String fechaStr = t.fecha != null ? DateFormat('dd MMM yyyy - hh:mm a').format(t.fecha!.toDate()) : 'Sin fecha';
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey[200]!)),
+                          elevation: 0,
+                          child: ExpansionTile(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            leading: CircleAvatar(
+                              backgroundColor: pagado ? Colors.green[50] : Colors.red[50],
+                              child: Icon(
+                                pagado ? Icons.check_circle : Icons.warning_rounded,
+                                color: pagado ? Colors.green : Colors.red,
+                              ),
+                            ),
+                            title: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('Productos:', style: TextStyle(fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 8),
-                                ...t.productos.map((p) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 4),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(p.descripcionAmigable, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                                            if (p.observaciones.isNotEmpty)
-                                              Text(p.observaciones, style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)),
-                                          ],
-                                        ),
-                                      ),
-                                      Text(_currencyFormat.format(p.subtotal), style: const TextStyle(fontSize: 13, color: AppTheme.accent)),
-                                    ],
-                                  ),
-                                )),
-                                const Divider(height: 24),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('Total Venta:', style: TextStyle(fontSize: 13)),
-                                    Text(_currencyFormat.format(t.totalVenta), style: const TextStyle(fontSize: 13)),
-                                  ],
-                                ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('Abonado:', style: TextStyle(fontSize: 13)),
-                                    Text(_currencyFormat.format(t.totalAbonado), style: const TextStyle(fontSize: 13, color: Colors.green)),
-                                  ],
-                                ),
-                                if (!pagado)
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text('Saldo Restante:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                                      Text(_currencyFormat.format(t.saldoRestante), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red)),
-                                    ],
-                                  ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    if (!pagado && t.estadoEntrega != 'Cancelado')
-                                      ElevatedButton.icon(
-                                        icon: const Icon(Icons.payment, size: 16, color: Colors.white),
-                                        label: const Text('Abonar', style: TextStyle(color: Colors.white)),
-                                        onPressed: () => _mostrarDialogoAbonoEspecifico(t),
-                                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-                                      ),
-                                    if (t.estadoEntrega == 'Pendiente')
-                                      OutlinedButton.icon(
-                                        icon: const Icon(Icons.cancel_outlined, size: 16, color: AppTheme.error),
-                                        label: const Text('Cancelar', style: TextStyle(color: AppTheme.error)),
-                                        onPressed: () => _mostrarDialogoCancelacion(t),
-                                        style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.error)),
-                                      ),
-                                      OutlinedButton.icon(
-                                        icon: const Icon(Icons.share, size: 16, color: Colors.green),
-                                        label: const Text('WhatsApp', style: TextStyle(color: Colors.green)),
-                                        onPressed: () {
-                                          _enviarWhatsAppTicket(t);
-                                        },
-                                      ),
-                                  ],
-                                ),
+                                Text('Ticket #${t.folio}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                Text(_currencyFormat.format(t.totalVenta), style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary, fontSize: 14)),
                               ],
                             ),
-                          )
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Text(fechaStr, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                if (!pagado && t.estadoEntrega != 'Cancelado')
+                                  Text('Resta: ${_currencyFormat.format(t.saldoRestante)}', style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold)),
+                                if (t.estadoEntrega == 'Cancelado')
+                                  Text('Cancelado: ${t.motivoCancelacion}', style: const TextStyle(fontSize: 12, color: Colors.red, fontStyle: FontStyle.italic)),
+                              ],
+                            ),
+                            children: [
+                              Container(
+                                color: Colors.grey[50],
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    const Text('Productos:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 8),
+                                    ...t.productos.map((p) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 4),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(p.descripcionAmigable, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                                                if (p.observaciones.isNotEmpty)
+                                                  Text(p.observaciones, style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)),
+                                              ],
+                                            ),
+                                          ),
+                                          Text(_currencyFormat.format(p.subtotal), style: const TextStyle(fontSize: 13, color: AppTheme.accent)),
+                                        ],
+                                      ),
+                                    )),
+                                    const Divider(height: 24),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Total Venta:', style: TextStyle(fontSize: 13)),
+                                        Text(_currencyFormat.format(t.totalVenta), style: const TextStyle(fontSize: 13)),
+                                      ],
+                                    ),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Abonado:', style: TextStyle(fontSize: 13)),
+                                        Text(_currencyFormat.format(t.totalAbonado), style: const TextStyle(fontSize: 13, color: Colors.green)),
+                                      ],
+                                    ),
+                                    if (!pagado)
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          const Text('Saldo Restante:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                          Text(_currencyFormat.format(t.saldoRestante), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red)),
+                                        ],
+                                      ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                      children: [
+                                        if (!pagado && t.estadoEntrega != 'Cancelado')
+                                          ElevatedButton.icon(
+                                            icon: const Icon(Icons.payment, size: 16, color: Colors.white),
+                                            label: const Text('Abonar', style: TextStyle(color: Colors.white)),
+                                            onPressed: () => _mostrarDialogoAbonoEspecifico(t),
+                                            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                                          ),
+                                        if (t.estadoEntrega == 'Pendiente')
+                                          OutlinedButton.icon(
+                                            icon: const Icon(Icons.cancel_outlined, size: 16, color: AppTheme.error),
+                                            label: const Text('Cancelar', style: TextStyle(color: AppTheme.error)),
+                                            onPressed: () => _mostrarDialogoCancelacion(t),
+                                            style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.error)),
+                                          ),
+                                        OutlinedButton.icon(
+                                          icon: const Icon(Icons.share, size: 16, color: Colors.green),
+                                          label: const Text('WhatsApp', style: TextStyle(color: Colors.green)),
+                                          onPressed: () {
+                                            _enviarWhatsAppTicket(t);
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              )
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

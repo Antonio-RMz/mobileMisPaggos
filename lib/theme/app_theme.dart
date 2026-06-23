@@ -48,7 +48,7 @@ class AppTheme {
         iconSize: 28, // Icono más grande
       ),
 
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: whiteColor,
         elevation: 3,
         shadowColor: Colors.black.withOpacity(0.15),

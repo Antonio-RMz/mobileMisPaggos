@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -124,61 +124,76 @@ class _VentasListScreenState extends State<VentasListScreen> {
               preferredSize: const Size.fromHeight(130), // Altura ajustada para filtros
               child: Container(
                 color: Colors.white,
-                child: Column(
+                width: double.infinity,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Filtrar por cliente, folio...',
-                          prefixIcon: const Icon(LucideIcons.search, color: Colors.grey),
-                          filled: true,
-                          fillColor: Colors.grey.shade100,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                        ),
-                        onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: InkWell(
-                        onTap: () => _seleccionarRango(context),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.calendar_today, size: 16, color: AppTheme.primary),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '${soloFechaFormat.format(_fechaInicio)} - ${soloFechaFormat.format(_fechaFin)}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark, fontSize: 13),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 800),
+                      child: SizedBox(
+                        width: MediaQuery.of(context).size.width,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                              child: TextField(
+                                decoration: InputDecoration(
+                                  hintText: 'Filtrar por cliente, folio...',
+                                  prefixIcon: const Icon(LucideIcons.search, color: Colors.grey),
+                                  filled: true,
+                                  fillColor: Colors.grey.shade100,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
                                   ),
-                                ],
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                                ),
+                                onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
                               ),
-                              const Icon(Icons.arrow_drop_down, color: Colors.grey),
-                            ],
-                          ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: InkWell(
+                                onTap: () => _seleccionarRango(context),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.calendar_today, size: 16, color: AppTheme.primary),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '${soloFechaFormat.format(_fechaInicio)} - ${soloFechaFormat.format(_fechaFin)}',
+                                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark, fontSize: 13),
+                                          ),
+                                        ],
+                                      ),
+                                      const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                child: Row(
+                                  children: [
+                                    _buildBotonFiltroRepartidor(),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                      child: Row(
-                        children: [
-                          _buildBotonFiltroRepartidor(),
-                        ],
                       ),
                     ),
                   ],
@@ -198,10 +213,13 @@ class _VentasListScreenState extends State<VentasListScreen> {
   Widget _buildList(List<Ticket> tickets) {
     if (tickets.isEmpty) return const Center(child: Text('No hay resultados.'));
     
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: tickets.length,
-      itemBuilder: (context, index) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: tickets.length,
+          itemBuilder: (context, index) {
         final t = tickets[index];
         return Card(
           elevation: 0,
@@ -263,6 +281,8 @@ class _VentasListScreenState extends State<VentasListScreen> {
           ),
         );
       },
+        ),
+      ),
     );
   }
 
@@ -273,6 +293,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
+        final bool esCatalogoConDeuda = ticket.productos.any((p) => p.seccion != 'carniceria') && ticket.estado == 'Con Deuda';
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -368,7 +389,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
                   ),
                 ),
               ),
-              if (ticket.estado != 'Pagado' && ticket.estadoEntrega != 'Cancelado') ...[
+              if (ticket.estado != 'Pagado' && ticket.estadoEntrega != 'Cancelado' && !esCatalogoConDeuda) ...[
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -387,7 +408,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
                   ),
                 ),
               ],
-              if (ticket.estado != 'Pagado' && ticket.estadoEntrega != 'Cancelado' && !ticket.deudaManualAsignada) ...[
+              if (ticket.estado != 'Pagado' && ticket.estadoEntrega != 'Cancelado' && !ticket.deudaManualAsignada && !esCatalogoConDeuda) ...[
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -680,50 +701,65 @@ class _VentasListScreenState extends State<VentasListScreen> {
         ],
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16).copyWith(bottom: 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16).copyWith(bottom: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Column(
-                children: [
-                  const Text('Total', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
-                  Text(currencyFormat.format(totalVentas), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textDark)),
-                ],
-              ),
-              Column(
-                children: [
-                  const Text('Abonado', style: TextStyle(color: Colors.green, fontSize: 13, fontWeight: FontWeight.bold)),
-                  Text(currencyFormat.format(totalAbonado), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textDark)),
-                ],
-              ),
-              Column(
-                children: [
-                  const Text('Pendiente', style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold)),
-                  Text(currencyFormat.format(totalPendiente), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textDark)),
-                ],
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width - 40,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Column(
+                            children: [
+                              const Text('Total', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
+                              Text(currencyFormat.format(totalVentas), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textDark)),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              const Text('Abonado', style: TextStyle(color: Colors.green, fontSize: 13, fontWeight: FontWeight.bold)),
+                              Text(currencyFormat.format(totalAbonado), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textDark)),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              const Text('Pendiente', style: TextStyle(color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold)),
+                              Text(currencyFormat.format(totalPendiente), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textDark)),
+                            ],
+                          ),
+                        ],
+                      ),
+                      if (hasRepartidor) ...[
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _mostrarDialogoAbonoRepartidor(context, _filtroRepartidor, totalPendiente, ticketIds),
+                            icon: const Icon(LucideIcons.banknote, color: Colors.white, size: 20),
+                            label: const Text('Abonar Dinero', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.success,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
-          if (hasRepartidor) ...[
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _mostrarDialogoAbonoRepartidor(context, _filtroRepartidor, totalPendiente, ticketIds),
-                icon: const Icon(LucideIcons.banknote, color: Colors.white, size: 20),
-                label: const Text('Abonar Dinero', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.success,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

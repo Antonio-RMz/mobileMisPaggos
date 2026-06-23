@@ -122,16 +122,12 @@ class PdfReportService {
       MaterialPageRoute(
         builder: (context) => Scaffold(
           appBar: AppBar(title: const Text('Vista Previa del Reporte')),
-          body: InteractiveViewer(
-            minScale: 1.0,
-            maxScale: 4.0,
-            child: PdfPreview(
-              build: (format) async => pdf.save(),
-              canChangeOrientation: false,
-              canChangePageFormat: false,
-              canDebug: false,
-              pdfFileName: 'corteG-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
-            ),
+          body: PdfPreview(
+            build: (format) async => pdf.save(),
+            canChangeOrientation: false,
+            canChangePageFormat: false,
+            canDebug: false,
+            pdfFileName: 'corteG-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
           ),
         ),
       ),
@@ -160,38 +156,39 @@ class PdfReportService {
         countCancelados++;
       } else {
         totalAsignado += t.totalVenta;
+        totalEntregado += t.totalAbonado;
+        totalPendiente += t.saldoRestante;
+        
         if (t.pagoRepartidorConfirmado) {
           countCompletados++;
-          totalEntregado += t.totalVenta;
-          if (t.metodoPago == 'Transferencia') {
-            totalTransferencia += t.totalVenta;
-          } else {
-            totalEfectivo += t.totalVenta;
-          }
         } else {
           countPendientes++;
-          totalPendiente += t.totalVenta;
+        }
+        
+        if (t.metodoPago == 'Transferencia') {
+          totalTransferencia += t.totalAbonado;
+        } else {
+          totalEfectivo += t.totalAbonado;
         }
       }
     }
 
-    double abonosCobrados = 0;
-    List<Abono> abonosExtra = [];
+    double abonosCobradosResumen = 0;
+    List<Abono> abonosDelRepartidor = [];
     for (var a in abonos) {
       if (a.ticketId != 'ENTREGA_REPARTIDOR' && a.ticketId != 'ENTREGA_GENERAL') {
-        bool isTicketInList = tickets.any((t) => t.id == a.ticketId);
-        if (!isTicketInList && (a.repartidorId == repartidorNombre || a.createBy == repartidorNombre)) {
-          abonosCobrados += a.monto;
-          abonosExtra.add(a);
+        if (a.repartidorId == repartidorNombre || a.createBy == repartidorNombre) {
+          bool isTicketInList = tickets.any((t) => t.id == a.ticketId);
+          if (!isTicketInList) {
+            abonosDelRepartidor.add(a);
+            abonosCobradosResumen += a.monto;
+          }
         }
       }
     }
     
-    // Ya no sumamos ni restamos entregasCaja de totalPendiente o totalEntregado, 
-    // porque el ciclo de los tickets ya procesa totalVenta correctamente.
-
     Map<String, Ticket> fetchedTickets = {};
-    for (var a in abonosExtra) {
+    for (var a in abonosDelRepartidor) {
       if (a.ticketId != null && a.ticketId != 'ENTREGA_REPARTIDOR' && a.ticketId != 'ENTREGA_GENERAL') {
         if (!fetchedTickets.containsKey(a.ticketId)) {
           try {
@@ -216,19 +213,20 @@ class PdfReportService {
           pw.Text('Repartidor: $repartidorNombre', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
           pw.SizedBox(height: 20),
           _buildSummaryCard([
-            'Total: ${_currencyFormat.format(totalAsignado)}',
+            'Valor Mercancía: ${_currencyFormat.format(totalAsignado)}',
             'Entregó a Caja: ${_currencyFormat.format(totalEntregado)}',
             'Debe a Caja: ${_currencyFormat.format(totalPendiente)}',
+            if (abonosCobradosResumen > 0) 'Abonos Extra: ${_currencyFormat.format(abonosCobradosResumen)}',
           ]),
           pw.SizedBox(height: 20),
           pw.Text('Detalle de Pedidos', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 10),
           _buildRepartidorTicketsTable(tickets),
-          if (abonosExtra.isNotEmpty) ...[
+          if (abonosDelRepartidor.isNotEmpty) ...[
             pw.SizedBox(height: 20),
             pw.Text('Abonos Cobrados', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
             pw.SizedBox(height: 10),
-            _buildAbonosTable(abonosExtra, fetchedTickets: fetchedTickets),
+            _buildAbonosTable(abonosDelRepartidor, fetchedTickets: fetchedTickets),
           ]
         ],
       ),
@@ -239,16 +237,12 @@ class PdfReportService {
       MaterialPageRoute(
         builder: (context) => Scaffold(
           appBar: AppBar(title: const Text('Vista Previa del Reporte')),
-          body: InteractiveViewer(
-            minScale: 1.0,
-            maxScale: 4.0,
-            child: PdfPreview(
-              build: (format) async => pdf.save(),
-              canChangeOrientation: false,
-              canChangePageFormat: false,
-              canDebug: false,
-              pdfFileName: 'corteR-$repartidorNombre-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
-            ),
+          body: PdfPreview(
+            build: (format) async => pdf.save(),
+            canChangeOrientation: false,
+            canChangePageFormat: false,
+            canDebug: false,
+            pdfFileName: 'corteR-$repartidorNombre-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
           ),
         ),
       ),
@@ -357,9 +351,15 @@ class PdfReportService {
   }
 
   static pw.Widget _buildRepartidorTicketsTable(List<Ticket> tickets) {
-    double sum = 0;
+    double sumVenta = 0;
+    double sumAbonado = 0;
+    double sumRestante = 0;
     for (var t in tickets) {
-      if (t.estadoEntrega != 'Cancelado') sum += t.totalVenta;
+      if (t.estadoEntrega != 'Cancelado') {
+        sumVenta += t.totalVenta;
+        sumAbonado += t.totalAbonado;
+        sumRestante += t.saldoRestante;
+      }
     }
 
     final data = tickets.map((t) {
@@ -367,13 +367,6 @@ class PdfReportService {
       String pagoStr = t.pagoRepartidorConfirmado ? t.metodoPago : 'Pendiente';
       if (t.estadoEntrega == 'Cancelado') pagoStr = '-';
       final fechaStr = t.createAt != null ? _dateFormat.format(t.createAt!.toDate()) : '-';
-      
-      String fechaPagoStr = '-';
-      if (t.pagoRepartidorConfirmado && t.updateAt != null) {
-        fechaPagoStr = DateFormat('dd/MM HH:mm').format(t.updateAt!.toDate());
-      }
-      String cobradorStr = t.cobradoPor != null ? t.cobradoPor! : '-';
-      String creoStr = t.createBy != null ? t.createBy! : '-';
 
       return [
         t.folio.isNotEmpty ? t.folio : 'N/A',
@@ -382,13 +375,15 @@ class PdfReportService {
         estado,
         pagoStr,
         _currencyFormat.format(t.totalVenta),
+        _currencyFormat.format(t.totalAbonado),
+        _currencyFormat.format(t.saldoRestante),
       ];
     }).toList();
 
-    data.add(['', '', '', '', 'TOTAL:', _currencyFormat.format(sum)]);
+    data.add(['', '', '', '', 'TOTALES:', _currencyFormat.format(sumVenta), _currencyFormat.format(sumAbonado), _currencyFormat.format(sumRestante)]);
 
     return pw.TableHelper.fromTextArray(
-      headers: ['Folio', 'Fecha/Hora', 'Cliente', 'Estado', 'Pago', 'Total'],
+      headers: ['Folio', 'Fecha/Hora', 'Cliente', 'Estado', 'Pago', 'Total Venta', 'Abonado', 'Restante'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
       rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
@@ -473,16 +468,36 @@ class PdfReportService {
       final obj = mov['obj'];
       String folioId = '-';
       String saldo = '-';
+      String repartidor = '-';
+      String categoria = '-';
       
       if (tipo == 'Venta') {
         final t = obj as Ticket;
         folioId = t.folio.isNotEmpty ? t.folio : 'N/A';
         if (t.saldoRestante > 0) saldo = _currencyFormat.format(t.saldoRestante);
+        
+        repartidor = t.repartidorNombre?.isNotEmpty == true ? t.repartidorNombre! : '-';
+        if (repartidor.contains('Sucursal')) repartidor = 'Sucursal';
+        
+        Set<String> categories = {};
+        for (var p in t.productos) {
+          if (p.seccion == 'carniceria') {
+            categories.add('Carnicería');
+          } else if (p.seccion == 'catalogo') {
+            categories.add('Catálogo');
+          } else if (p.seccion.isNotEmpty) {
+            categories.add(p.seccion[0].toUpperCase() + p.seccion.substring(1));
+          }
+        }
+        categoria = categories.isEmpty ? '-' : categories.join(', ');
       } else if (tipo == 'Abono') {
         final a = obj as Abono;
         folioId = a.ticketId ?? 'General';
+        repartidor = a.repartidorId?.isNotEmpty == true ? a.repartidorId! : (a.createBy.isNotEmpty == true ? a.createBy : '-');
       } else if (tipo == 'Gasto') {
+        final g = obj as Gasto;
         folioId = 'N/A';
+        repartidor = g.createBy.isNotEmpty == true ? g.createBy : '-';
       }
 
       return [
@@ -492,6 +507,8 @@ class PdfReportService {
         tipo,
         subtipo,
         metodo,
+        repartidor,
+        categoria,
         saldo,
         estado == 'Cancelado' ? 'Cancelado' : 'Aprobado',
         montoStr,
@@ -519,18 +536,33 @@ class PdfReportService {
       '',
       '',
       '',
+      '',
+      '',
       'TOTAL:',
       _currencyFormat.format(totalSum)
     ]);
 
     return pw.TableHelper.fromTextArray(
-      headers: ['Fecha', 'Folio/ID', 'Cliente/Concepto', 'Tipo', 'Entrega', 'Método', 'Saldo Pend.', 'Estado', 'Monto'],
-      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 8),
+      headers: ['Fecha', 'Folio/ID', 'Cliente/Concepto', 'Tipo', 'Entrega', 'Método', 'Repartió', 'Categoría', 'Saldo Pend.', 'Estado', 'Monto'],
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 7),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
       rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
       cellAlignment: pw.Alignment.centerLeft,
-      cellStyle: const pw.TextStyle(fontSize: 8),
+      cellStyle: const pw.TextStyle(fontSize: 7),
       data: data,
+      columnWidths: {
+        0: const pw.FlexColumnWidth(1.2), // Fecha
+        1: const pw.FlexColumnWidth(0.8), // Folio
+        2: const pw.FlexColumnWidth(2.0), // Cliente
+        3: const pw.FlexColumnWidth(0.6), // Tipo
+        4: const pw.FlexColumnWidth(0.8), // Entrega
+        5: const pw.FlexColumnWidth(0.8), // Método
+        6: const pw.FlexColumnWidth(1.0), // Repartió
+        7: const pw.FlexColumnWidth(1.2), // Categoría
+        8: const pw.FlexColumnWidth(0.8), // Saldo Pend.
+        9: const pw.FlexColumnWidth(0.8), // Estado
+        10: const pw.FlexColumnWidth(0.9), // Monto
+      },
     );
   }
 
@@ -634,16 +666,12 @@ class PdfReportService {
       MaterialPageRoute(
         builder: (context) => Scaffold(
           appBar: AppBar(title: const Text('Vista Previa del Reporte')),
-          body: InteractiveViewer(
-            minScale: 1.0,
-            maxScale: 4.0,
-            child: PdfPreview(
-              build: (format) async => pdf.save(),
-              canChangeOrientation: false,
-              canChangePageFormat: false,
-              canDebug: false,
-              pdfFileName: 'productosVendidos-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
-            ),
+          body: PdfPreview(
+            build: (format) async => pdf.save(),
+            canChangeOrientation: false,
+            canChangePageFormat: false,
+            canDebug: false,
+            pdfFileName: 'productosVendidos-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
           ),
         ),
       ),
@@ -796,16 +824,12 @@ class PdfReportService {
       MaterialPageRoute(
         builder: (context) => Scaffold(
           appBar: AppBar(title: const Text('Vista Previa del Reporte')),
-          body: InteractiveViewer(
-            minScale: 1.0,
-            maxScale: 4.0,
-            child: PdfPreview(
-              build: (format) async => pdf.save(),
-              canChangeOrientation: false,
-              canChangePageFormat: false,
-              canDebug: false,
-              pdfFileName: 'ReporteDeudores-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
-            ),
+          body: PdfPreview(
+            build: (format) async => pdf.save(),
+            canChangeOrientation: false,
+            canChangePageFormat: false,
+            canDebug: false,
+            pdfFileName: 'ReporteDeudores-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
           ),
         ),
       ),

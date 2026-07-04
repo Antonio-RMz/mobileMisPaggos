@@ -7,14 +7,11 @@ import '../providers/user_provider.dart';
 import '../screens/main_screen.dart';
 import '../screens/support_screen.dart';
 import '../screens/user_profile_screen.dart';
-import '../screens/user_profile_screen.dart';
 import '../screens/personal_list_screen.dart';
 
 import '../screens/ventas_list_screen.dart';
 import '../screens/printer_settings_screen.dart';
 import '../providers/printer_provider.dart';
-import '../screens/login_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -221,27 +218,6 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
           
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildDrawerItem(
-              context: context,
-              icon: LucideIcons.logOut,
-              title: 'Cerrar Sesión',
-              onTap: () async {
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setBool('is_logged_in', false);
-                
-                if (context.mounted) {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    (route) => false,
-                  );
-                }
-              },
-            ),
-          ),
           const SizedBox(height: 20),
         ],
       ),

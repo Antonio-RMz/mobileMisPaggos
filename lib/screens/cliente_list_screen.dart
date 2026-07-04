@@ -342,7 +342,7 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
                   }).toList();
                 }
 
-                final bool isWide = MediaQuery.of(context).size.width >= 600;
+                final bool isWide = MediaQuery.of(context).size.width >= AppTheme.tabletBreakpoint;
 
                 if (isWide) {
                   return GridView.builder(
@@ -465,7 +465,7 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
     final Color tiempoColor = tieneDeuda ? AppTheme.error : AppTheme.success;
     final IconData tiempoIcon = tieneDeuda ? LucideIcons.alertTriangle : LucideIcons.checkCircle;
 
-    final bool isWide = MediaQuery.of(context).size.width >= 600;
+    final bool isWide = MediaQuery.of(context).size.width >= AppTheme.tabletBreakpoint;
 
     return Card(
       margin: isWide ? const EdgeInsets.all(0) : const EdgeInsets.only(bottom: 12),
@@ -610,7 +610,7 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
   }
 
   Widget _buildAddCard(BuildContext context) {
-    final bool isWide = MediaQuery.of(context).size.width >= 600;
+    final bool isWide = MediaQuery.of(context).size.width >= AppTheme.tabletBreakpoint;
     return GestureDetector(
       onTap: () => _mostrarModalAlta(context),
       child: Container(

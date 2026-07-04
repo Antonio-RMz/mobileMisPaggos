@@ -286,15 +286,15 @@ class PdfService {
                 
                 return [
                   fecha,
-                  currencyFormat.format(a.monto),
                   referencia,
                   a.createBy,
+                  currencyFormat.format(a.monto),
                 ];
               });
               
               return [
                 pw.TableHelper.fromTextArray(
-                  headers: ['Fecha', 'Monto Abonado', 'Referencia', 'Cobrado Por'],
+                  headers: ['Fecha', 'Referencia', 'Cobrado Por', 'Monto Abonado'],
                   data: abonoData,
                   headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 11),
                   headerDecoration: const pw.BoxDecoration(color: PdfColors.teal700),
@@ -302,14 +302,14 @@ class PdfService {
                   cellAlignment: pw.Alignment.centerLeft,
                   cellAlignments: {
                     0: pw.Alignment.centerLeft,
-                    1: pw.Alignment.centerRight,
+                    1: pw.Alignment.centerLeft,
                     2: pw.Alignment.centerLeft,
-                    3: pw.Alignment.centerLeft,
+                    3: pw.Alignment.centerRight,
                   },
                   columnWidths: {
                     0: const pw.FlexColumnWidth(2),
-                    1: const pw.FlexColumnWidth(2),
-                    2: const pw.FlexColumnWidth(3),
+                    1: const pw.FlexColumnWidth(3),
+                    2: const pw.FlexColumnWidth(2),
                     3: const pw.FlexColumnWidth(2),
                   },
                   cellStyle: const pw.TextStyle(fontSize: 10),

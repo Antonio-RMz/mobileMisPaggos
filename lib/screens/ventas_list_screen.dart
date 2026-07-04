@@ -44,19 +44,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
       initialDateRange: DateTimeRange(start: _fechaInicio, end: _fechaFin),
       builder: (context, child) {
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: AppTheme.primary,
-              onPrimary: Colors.white,
-              onSurface: AppTheme.textDark,
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: AppTheme.primary, // This makes the "Guardar/Save" button text visible
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
+          data: Theme.of(context),
           child: child!,
         );
       },
@@ -77,7 +65,13 @@ class _VentasListScreenState extends State<VentasListScreen> {
         .where('empresaId', isEqualTo: empresaId)
         .snapshots(includeMetadataChanges: true)
         .map((snapshot) {
-      final list = snapshot.docs.map((doc) => Ticket.fromMap(doc.id, doc.data())).toList();
+      final list = snapshot.docs.map((doc) {
+        final data = doc.data();
+        print('DEBUG TICKET ${doc.id} - productos raw: ${data['productos']}');
+        final t = Ticket.fromMap(doc.id, data);
+        print('DEBUG TICKET ${doc.id} - productos parsed: ${t.productos.length}');
+        return t;
+      }).toList();
       
       final filtrados = list.where((t) {
         if (t.fecha == null) return false;
@@ -262,6 +256,8 @@ class _VentasListScreenState extends State<VentasListScreen> {
                               t.fecha != null ? dateFormat.format(t.fecha!.toDate()) : 'Sin fecha', 
                               style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                             ),
+                            const SizedBox(width: 8),
+                            _buildSeccionBadge(t),
                             if (t.estadoEntrega == 'Cancelado') ...[
                                const SizedBox(width: 8),
                                Container(
@@ -286,6 +282,41 @@ class _VentasListScreenState extends State<VentasListScreen> {
     );
   }
 
+  Widget _buildSeccionBadge(Ticket t) {
+    final tieneCarniceria = t.productos.any((p) => p.seccion == 'carniceria');
+    final tieneCatalogo = t.productos.any((p) => p.seccion != 'carniceria');
+
+    String text = 'Catálogo';
+    Color bgColor = Colors.blue.shade50;
+    Color textColor = Colors.blue.shade700;
+
+    if (tieneCarniceria && tieneCatalogo) {
+      text = 'Mixto';
+      bgColor = Colors.purple.shade50;
+      textColor = Colors.purple.shade700;
+    } else if (tieneCarniceria) {
+      text = 'Carnicería';
+      bgColor = Colors.red.shade50;
+      textColor = Colors.red.shade700;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
 
   void _mostrarDetallesTicket(BuildContext context, Ticket ticket) {
     showModalBottomSheet(
@@ -300,39 +331,45 @@ class _VentasListScreenState extends State<VentasListScreen> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           padding: const EdgeInsets.only(top: 12, left: 24, right: 24, bottom: 24),
-          height: MediaQuery.of(context).size.height * 0.7,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Detalles del Pedido', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-                  Text('#${ticket.folio}', style: const TextStyle(fontSize: 16, color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Detalles del Pedido', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                    Text('#${ticket.folio}', style: const TextStyle(fontSize: 16, color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('Cliente: ${ticket.clienteNombre}', style: const TextStyle(fontSize: 16)),
+                Text('Fecha: ${ticket.fecha != null ? dateFormat.format(ticket.fecha!.toDate()) : 'S/F'}', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                if (ticket.tipoEntrega == 'Domicilio' && ticket.repartidorNombre != null) ...[
+                  const SizedBox(height: 4),
+                  Text('Repartidor: ${ticket.repartidorNombre}', style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
                 ],
-              ),
-              const SizedBox(height: 16),
-              Text('Cliente: ${ticket.clienteNombre}', style: const TextStyle(fontSize: 16)),
-              Text('Fecha: ${ticket.fecha != null ? dateFormat.format(ticket.fecha!.toDate()) : 'S/F'}', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
-              if (ticket.tipoEntrega == 'Domicilio' && ticket.repartidorNombre != null) ...[
-                const SizedBox(height: 4),
-                Text('Repartidor: ${ticket.repartidorNombre}', style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
-              ],
-              const Divider(height: 32),
-              const Text('Productos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: ticket.productos.length,
-                  itemBuilder: (context, i) {
-                    final p = ticket.productos[i];
+                const Divider(height: 32),
+                const Text('Productos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 8),
+                if (ticket.productos.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Text('No hay productos registrados en esta venta.', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+                  )
+                else
+                  ...ticket.productos.map((p) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: Row(
@@ -352,98 +389,97 @@ class _VentasListScreenState extends State<VentasListScreen> {
                         ],
                       ),
                     );
-                  },
+                  }).toList(),
+                const Divider(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Total Venta:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(currencyFormat.format(ticket.totalVenta), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.accent)),
+                  ],
                 ),
-              ),
-              const Divider(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Total Venta:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text(currencyFormat.format(ticket.totalVenta), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.accent)),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      final printer = Provider.of<PrinterProvider>(context, listen: false);
+                      if (printer.isConnected) {
+                        printer.printDeliveryTicket(ticket);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Imprimiendo ticket...')),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Impresora no conectada.'), backgroundColor: Colors.red),
+                        );
+                      }
+                    },
+                    icon: const Icon(LucideIcons.printer, color: Colors.white),
+                    label: const Text('Imprimir Ticket', style: TextStyle(color: Colors.white, fontSize: 16)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                if (ticket.estado != 'Pagado' && ticket.estadoEntrega != 'Cancelado' && !esCatalogoConDeuda) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _liquidarPorTransferencia(ticket);
+                      },
+                      icon: const Icon(LucideIcons.banknote, color: Colors.blue),
+                      label: const Text('Cobrado por Transferencia', style: TextStyle(color: Colors.blue, fontSize: 16)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Colors.blue),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
                 ],
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    final printer = Provider.of<PrinterProvider>(context, listen: false);
-                    if (printer.isConnected) {
-                      printer.printDeliveryTicket(ticket);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Imprimiendo ticket...')),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Impresora no conectada.'), backgroundColor: Colors.red),
-                      );
-                    }
-                  },
-                  icon: const Icon(LucideIcons.printer, color: Colors.white),
-                  label: const Text('Imprimir Ticket', style: TextStyle(color: Colors.white, fontSize: 16)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-              if (ticket.estado != 'Pagado' && ticket.estadoEntrega != 'Cancelado' && !esCatalogoConDeuda) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _liquidarPorTransferencia(ticket);
-                    },
-                    icon: const Icon(LucideIcons.banknote, color: Colors.blue),
-                    label: const Text('Cobrado por Transferencia', style: TextStyle(color: Colors.blue, fontSize: 16)),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: const BorderSide(color: Colors.blue),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                if (ticket.estado != 'Pagado' && ticket.estadoEntrega != 'Cancelado' && !ticket.deudaManualAsignada && !esCatalogoConDeuda) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _marcarComoPendienteDePago(ticket);
+                      },
+                      icon: const Icon(LucideIcons.clock, color: Colors.orange),
+                      label: const Text('Marcar como Pendiente de Pago', style: TextStyle(color: Colors.orange, fontSize: 16)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Colors.orange),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
                   ),
-                ),
-              ],
-              if (ticket.estado != 'Pagado' && ticket.estadoEntrega != 'Cancelado' && !ticket.deudaManualAsignada && !esCatalogoConDeuda) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _marcarComoPendienteDePago(ticket);
-                    },
-                    icon: const Icon(LucideIcons.clock, color: Colors.orange),
-                    label: const Text('Marcar como Pendiente de Pago', style: TextStyle(color: Colors.orange, fontSize: 16)),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: const BorderSide(color: Colors.orange),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ],
+                if (ticket.estadoEntrega != 'Cancelado') ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _confirmarCancelacion(context, ticket),
+                      icon: const Icon(LucideIcons.xCircle, color: AppTheme.error),
+                      label: const Text('Cancelar Venta', style: TextStyle(color: AppTheme.error, fontSize: 16)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: AppTheme.error),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-              if (ticket.estadoEntrega != 'Cancelado') ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _confirmarCancelacion(context, ticket),
-                    icon: const Icon(LucideIcons.xCircle, color: AppTheme.error),
-                    label: const Text('Cancelar Venta', style: TextStyle(color: AppTheme.error, fontSize: 16)),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: const BorderSide(color: AppTheme.error),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         );
       },
@@ -489,24 +525,38 @@ class _VentasListScreenState extends State<VentasListScreen> {
 
   void _confirmarCancelacion(BuildContext context, Ticket ticket) {
     final TextEditingController pinCtrl = TextEditingController();
+    final TextEditingController motivoCtrl = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Cancelar Venta', style: TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-             Text('¿Estás seguro de que deseas cancelar la venta #${ticket.folio}? Esta acción no se puede deshacer y se revertirá la deuda del cliente si la hubiera.'),
-             const SizedBox(height: 16),
-             TextField(
-               controller: pinCtrl,
-               obscureText: true,
-               keyboardType: TextInputType.number,
-               decoration: const InputDecoration(labelText: 'PIN de autorización', border: OutlineInputBorder()),
-               autofocus: true,
-             ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+               Text('¿Estás seguro de que deseas cancelar la venta #${ticket.folio}? Esta acción no se puede deshacer y se revertirá la deuda del cliente si la hubiera.'),
+               const SizedBox(height: 16),
+               TextField(
+                 controller: pinCtrl,
+                 obscureText: true,
+                 keyboardType: TextInputType.number,
+                 decoration: const InputDecoration(labelText: 'PIN de autorización', border: OutlineInputBorder()),
+                 autofocus: true,
+               ),
+               const SizedBox(height: 16),
+               TextField(
+                 controller: motivoCtrl,
+                 textCapitalization: TextCapitalization.sentences,
+                 decoration: const InputDecoration(
+                   labelText: 'Motivo de cancelación',
+                   border: OutlineInputBorder(),
+                   hintText: 'Ej. Error en productos, duplicado...',
+                 ),
+                 maxLines: 2,
+               ),
+            ],
+          ),
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
@@ -520,13 +570,18 @@ class _VentasListScreenState extends State<VentasListScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PIN incorrecto'), backgroundColor: AppTheme.error));
                 return;
               }
+              final motivo = motivoCtrl.text.trim();
+              if (motivo.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debe ingresar un motivo de cancelación'), backgroundColor: AppTheme.error));
+                return;
+              }
               Navigator.pop(ctx); // Cierra dialog
               Navigator.pop(context); // Cierra modal
               final safeContext = this.context;
               if (!safeContext.mounted) return;
               
               try {
-                await Provider.of<FirebaseService>(safeContext, listen: false).cancelarTicket(ticket, 'Cancelado por el usuario desde la app');
+                await Provider.of<FirebaseService>(safeContext, listen: false).cancelarTicket(ticket, motivo);
                 if (safeContext.mounted) {
                   OverlayHelper.showSuccess(safeContext, message: 'Venta Cancelada Exitosamente');
                 }
@@ -680,9 +735,18 @@ class _VentasListScreenState extends State<VentasListScreen> {
       if (t.estadoEntrega != 'Cancelado') {
         totalVentas += t.totalVenta;
         totalAbonado += t.totalAbonado;
-        if (!t.pagoRepartidorConfirmado && t.saldoRestante > 0) {
-          totalPendiente += t.saldoRestante;
-          ticketIds.add(t.id);
+        if (!t.pagoRepartidorConfirmado) {
+          if (t.formaVenta == 'Crédito') {
+            if (t.totalAbonado > 0) {
+              totalPendiente += t.totalAbonado;
+              ticketIds.add(t.id);
+            }
+          } else {
+            if (t.saldoRestante > 0) {
+              totalPendiente += t.saldoRestante;
+              ticketIds.add(t.id);
+            }
+          }
         }
       }
     }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
+  // Breakpoint para detectar pantallas anchas/tablets (ancho en píxeles lógicos)
+  static const double tabletBreakpoint = 500.0;
+
   // Paleta adaptada para mayor contraste y legibilidad
   static const Color slateBlue = Color(0xFF0F172A); // Azul oscuro
   static const Color turquoise = Color(0xFF0D9488); // Turquesa más oscuro para mejor contraste
@@ -115,24 +118,74 @@ class AppTheme {
         backgroundColor: whiteColor,
         headerBackgroundColor: slateBlue,
         headerForegroundColor: whiteColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        dayStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
+        rangePickerHeaderBackgroundColor: slateBlue,
+        rangePickerHeaderForegroundColor: whiteColor,
+        rangeSelectionBackgroundColor: turquoise.withOpacity(0.12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: cardHighlight, width: 1),
+        ),
+        headerHeadlineStyle: const TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Inter',
+        ),
+        headerHelpStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          fontFamily: 'Inter',
+        ),
+        rangePickerHeaderHeadlineStyle: const TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Inter',
+        ),
+        rangePickerHeaderHelpStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          fontFamily: 'Inter',
+        ),
+        dayStyle: const TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 15,
+          fontFamily: 'Inter',
+        ),
+        weekdayStyle: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+          color: turquoise,
+          fontFamily: 'Inter',
+        ),
         todayBackgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return turquoise;
           return Colors.transparent;
         }),
         todayForegroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return slateBlue;
+          if (states.contains(WidgetState.selected)) return whiteColor;
           return turquoise;
         }),
+        todayBorder: const BorderSide(color: turquoise, width: 1.5),
         dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return turquoise;
           return Colors.transparent;
         }),
         dayForegroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return slateBlue;
+          if (states.contains(WidgetState.selected)) return whiteColor;
           return textDark;
         }),
+        dayShape: WidgetStateProperty.all(const CircleBorder()),
+        confirmButtonStyle: ButtonStyle(
+          foregroundColor: WidgetStateProperty.all(turquoise),
+          textStyle: WidgetStateProperty.all(
+            const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
+        cancelButtonStyle: ButtonStyle(
+          foregroundColor: WidgetStateProperty.all(textLight),
+          textStyle: WidgetStateProperty.all(
+            const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
       ),
     );
   }

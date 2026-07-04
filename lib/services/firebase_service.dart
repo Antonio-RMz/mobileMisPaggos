@@ -73,10 +73,22 @@ class FirebaseService {
     });
   }
 
+  /// Método para obtener un stream del cliente en tiempo real por su ID
+  Stream<Cliente> streamCliente(String clienteId) {
+    return _clientesCollection.doc(clienteId).snapshots().map((doc) {
+      return Cliente.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+    });
+  }
+
   /// Método para obtener un cliente por su ID
   Future<Cliente?> getClienteById(String id) async {
     try {
-      final doc = await _clientesCollection.doc(id).get();
+      DocumentSnapshot doc;
+      try {
+        doc = await _clientesCollection.doc(id).get(const GetOptions(source: Source.serverAndCache));
+      } catch (_) {
+        doc = await _clientesCollection.doc(id).get(const GetOptions(source: Source.cache));
+      }
       if (doc.exists) {
         return Cliente.fromMap(doc.id, doc.data() as Map<String, dynamic>);
       }
@@ -663,10 +675,18 @@ class FirebaseService {
     batch.set(abonoRef, abono.toMap());
 
     // 2. Traer tickets del cliente (sin filtro de estado para evitar errores de índice y offline caching)
-    final snapshotTickets = await _ticketsCollection
-        .where('empresaId', isEqualTo: empresaId)
-        .where('clienteId', isEqualTo: clienteId)
-        .get();
+    QuerySnapshot snapshotTickets;
+    try {
+      snapshotTickets = await _ticketsCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .where('clienteId', isEqualTo: clienteId)
+          .get(const GetOptions(source: Source.serverAndCache));
+    } catch (_) {
+      snapshotTickets = await _ticketsCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .where('clienteId', isEqualTo: clienteId)
+          .get(const GetOptions(source: Source.cache));
+    }
 
     final ticketsList = snapshotTickets.docs.map((doc) {
       return Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>);
@@ -714,7 +734,12 @@ class FirebaseService {
     // 4. Descontar la deuda total del cliente
     if (clienteId.isNotEmpty) {
       final clienteRef = _clientesCollection.doc(clienteId);
-      final doc = await clienteRef.get();
+      DocumentSnapshot doc;
+      try {
+        doc = await clienteRef.get(const GetOptions(source: Source.serverAndCache));
+      } catch (_) {
+        doc = await clienteRef.get(const GetOptions(source: Source.cache));
+      }
       if (doc.exists) {
         batch.update(clienteRef, {
           'deuda_total': FieldValue.increment(-montoAbono),
@@ -747,6 +772,7 @@ class FirebaseService {
     );
     batch.set(abonoRef, abono.toMap());
 
+    final bool estabaConDeuda = ticket.estado == 'Con Deuda';
     // 2. Actualizar el ticket
     final double saldoAnterior = ticket.saldoRestante;
     double nuevoAbonado = ticket.totalAbonado + montoAbono;
@@ -765,12 +791,16 @@ class FirebaseService {
       'updateAt': ticket.updateAt,
     });
 
-    // 3. Descontar la deuda total del cliente
-    final double montoRealDescontado = (montoAbono > saldoAnterior) ? saldoAnterior : montoAbono;
-    
-    if (clienteId.isNotEmpty) {
+    // 3. Descontar la deuda total del cliente (solo si el ticket estaba registrado con deuda)
+    if (clienteId.isNotEmpty && estabaConDeuda) {
+      final double montoRealDescontado = (montoAbono > saldoAnterior) ? saldoAnterior : montoAbono;
       final clienteRef = _clientesCollection.doc(clienteId);
-      final doc = await clienteRef.get();
+      DocumentSnapshot doc;
+      try {
+        doc = await clienteRef.get(const GetOptions(source: Source.serverAndCache));
+      } catch (_) {
+        doc = await clienteRef.get(const GetOptions(source: Source.cache));
+      }
       if (doc.exists) {
         batch.update(clienteRef, {
           'deuda_total': FieldValue.increment(-montoRealDescontado),
@@ -826,7 +856,12 @@ class FirebaseService {
     // 3. Descontar la deuda total del cliente
     if (saldoAnterior > 0 && ticket.clienteId.isNotEmpty) {
       final clienteRef = _clientesCollection.doc(ticket.clienteId);
-      final doc = await clienteRef.get();
+      DocumentSnapshot doc;
+      try {
+        doc = await clienteRef.get(const GetOptions(source: Source.serverAndCache));
+      } catch (_) {
+        doc = await clienteRef.get(const GetOptions(source: Source.cache));
+      }
       if (doc.exists) {
         batch.update(clienteRef, {
           'deuda_total': FieldValue.increment(-saldoAnterior),
@@ -864,7 +899,12 @@ class FirebaseService {
     // Descontar la deuda total del cliente ya que el pedido no se concretó
     if (saldoAnterior > 0 && ticket.clienteId.isNotEmpty) {
       final clienteRef = _clientesCollection.doc(ticket.clienteId);
-      final doc = await clienteRef.get();
+      DocumentSnapshot doc;
+      try {
+        doc = await clienteRef.get(const GetOptions(source: Source.serverAndCache));
+      } catch (_) {
+        doc = await clienteRef.get(const GetOptions(source: Source.cache));
+      }
       if (doc.exists) {
         batch.update(clienteRef, {
           'deuda_total': FieldValue.increment(-saldoAnterior),
@@ -888,9 +928,16 @@ class FirebaseService {
     final batch = FirebaseFirestore.instance.batch();
     
     // Obtener los tickets del repartidor que deba a caja
-    final ticketsSnapshot = await _ticketsCollection
-        .where('empresaId', isEqualTo: empresaId)
-        .get();
+    QuerySnapshot ticketsSnapshot;
+    try {
+      ticketsSnapshot = await _ticketsCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .get(const GetOptions(source: Source.serverAndCache));
+    } catch (_) {
+      ticketsSnapshot = await _ticketsCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .get(const GetOptions(source: Source.cache));
+    }
 
     var tickets = ticketsSnapshot.docs
         .map((d) => Ticket.fromMap(d.id, d.data() as Map<String, dynamic>))
@@ -913,6 +960,23 @@ class FirebaseService {
     for (var t in tickets) {
       if (abonoRestante <= 0) break;
 
+      if (t.formaVenta == 'Crédito') {
+        if (!t.pagoRepartidorConfirmado) {
+          double loQueFaltaEntregar = t.totalAbonado;
+          if (abonoRestante >= loQueFaltaEntregar) {
+            abonoRestante -= loQueFaltaEntregar;
+            t.pagoRepartidorConfirmado = true;
+          } else {
+            abonoRestante = 0;
+          }
+          batch.update(_ticketsCollection.doc(t.id), {
+            'pagoRepartidorConfirmado': t.pagoRepartidorConfirmado,
+            'updateAt': Timestamp.now()
+          });
+        }
+        continue;
+      }
+
       double abonarAlTicket = 0;
       if (abonoRestante >= t.saldoRestante) {
         abonarAlTicket = t.saldoRestante;
@@ -922,6 +986,7 @@ class FirebaseService {
         abonoRestante = 0;
       }
 
+      final bool estabaConDeuda = t.estado == 'Con Deuda';
       t.totalAbonado += abonarAlTicket;
       
       if (t.saldoRestante <= 0) {
@@ -931,10 +996,10 @@ class FirebaseService {
 
       batch.update(_ticketsCollection.doc(t.id), t.toMap());
 
-      // Reducir la deuda del cliente si aplica
-      if (abonarAlTicket > 0 && t.clienteId.isNotEmpty) {
+      // Reducir la deuda del cliente si aplica (solo si el ticket estaba registrado con deuda)
+      if (abonarAlTicket > 0 && t.clienteId.isNotEmpty && estabaConDeuda) {
          batch.update(_clientesCollection.doc(t.clienteId), {
-           'deudaTotal': FieldValue.increment(-abonarAlTicket)
+           'deuda_total': FieldValue.increment(-abonarAlTicket)
          });
 
          // Crear el registro del abono para el cliente para que aparezca en el estado de cuenta (PDF)
@@ -1033,12 +1098,23 @@ class FirebaseService {
   // GASTOS / EGRESOS
   // =========================================================================
 
-  Future<void> registrarGasto(String concepto, double monto) async {
+  Future<void> registrarGasto(
+    String concepto,
+    double monto, {
+    String? repartidorId,
+    String? repartidorNombre,
+    String? tipoGasto = 'General',
+    bool esDeCaja = true,
+  }) async {
     final gasto = Gasto(
       empresaId: empresaId,
       concepto: concepto,
       monto: monto,
       createBy: 'Cajero',
+      repartidorId: repartidorId,
+      repartidorNombre: repartidorNombre,
+      tipoGasto: tipoGasto,
+      esDeCaja: esDeCaja,
     );
     await _gastosCollection.add(gasto.toMap());
   }
@@ -1198,10 +1274,18 @@ class FirebaseService {
 
   /// Obtiene todos los tickets que tienen deuda (usado para el Reporte de Deudores)
   Future<List<Ticket>> getAllTicketsConDeudaFuture() async {
-    final snapshot = await _ticketsCollection
-        .where('empresaId', isEqualTo: empresaId)
-        .where('estado', isEqualTo: 'Con Deuda')
-        .get();
+    QuerySnapshot snapshot;
+    try {
+      snapshot = await _ticketsCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .where('estado', isEqualTo: 'Con Deuda')
+          .get(const GetOptions(source: Source.serverAndCache));
+    } catch (_) {
+      snapshot = await _ticketsCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .where('estado', isEqualTo: 'Con Deuda')
+          .get(const GetOptions(source: Source.cache));
+    }
     return snapshot.docs
         .map((doc) => Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>))
         .where((t) => t.saldoRestante > 0)
@@ -1210,11 +1294,78 @@ class FirebaseService {
 
   /// Obtiene todos los abonos para cruzar información en el Reporte de Deudores
   Future<List<Abono>> getAllAbonosFuture() async {
-    final snapshot = await _abonosCollection
-        .where('empresaId', isEqualTo: empresaId)
-        .get();
+    QuerySnapshot snapshot;
+    try {
+      snapshot = await _abonosCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .get(const GetOptions(source: Source.serverAndCache));
+    } catch (_) {
+      snapshot = await _abonosCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .get(const GetOptions(source: Source.cache));
+    }
     return snapshot.docs
         .map((doc) => Abono.fromMap(doc.id, doc.data() as Map<String, dynamic>))
         .toList();
+  }
+
+  /// Recalcula la deuda total real de un cliente y la actualiza en Firestore
+  Future<void> recalcularDeudaCliente(String clienteId) async {
+    if (clienteId.isEmpty || clienteId == 'GNR001') return;
+
+    try {
+      // 1. Obtener todos los tickets del cliente
+      final ticketsSnapshot = await _ticketsCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .where('clienteId', isEqualTo: clienteId)
+          .get();
+
+      final tickets = ticketsSnapshot.docs
+          .map((d) => Ticket.fromMap(d.id, d.data() as Map<String, dynamic>))
+          .where((t) => t.estadoEntrega != 'Cancelado')
+          .toList();
+
+      // 2. Obtener todos los abonos del cliente
+      final abonosSnapshot = await _abonosCollection
+          .where('empresaId', isEqualTo: empresaId)
+          .where('clienteId', isEqualTo: clienteId)
+          .get();
+
+      final abonos = abonosSnapshot.docs
+          .map((d) => Abono.fromMap(d.id, d.data() as Map<String, dynamic>))
+          .toList();
+
+      // 3. Calcular la deuda real
+      double totalVentaDeuda = 0;
+      for (var t in tickets) {
+        if (t.formaVenta == 'Crédito' || t.estado == 'Con Deuda' || t.deudaManualAsignada) {
+          totalVentaDeuda += t.totalVenta;
+        }
+      }
+
+      double totalAbonadoDeuda = 0;
+      for (var a in abonos) {
+        if (a.ticketId == null || a.ticketId!.isEmpty) {
+          totalAbonadoDeuda += a.monto;
+        } else {
+          // Solo sumamos abonos asociados a tickets que generen deuda para el cliente
+          final t = tickets.any((ticket) => ticket.id == a.ticketId);
+          if (t) {
+            totalAbonadoDeuda += a.monto;
+          }
+        }
+      }
+
+      double deudaReal = totalVentaDeuda - totalAbonadoDeuda;
+      deudaReal = double.parse(deudaReal.toStringAsFixed(2)); // Evitar problemas de precisión de punto flotante
+
+      // 4. Actualizar en Firestore
+      await _clientesCollection.doc(clienteId).update({
+        'deuda_total': deudaReal,
+        'updateAt': Timestamp.now(),
+      });
+    } catch (e) {
+      print('Error en recalcularDeudaCliente: $e');
+    }
   }
 }

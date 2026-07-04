@@ -7,6 +7,7 @@ import '../services/pdf_report_service.dart';
 import '../models/ticket_model.dart';
 import '../models/abono_model.dart';
 import '../models/gasto_model.dart';
+import '../models/personal_model.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import '../utils/overlay_helper.dart';
@@ -66,13 +67,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
       initialDateRange: DateTimeRange(start: _startDate, end: _endDate),
       builder: (context, child) {
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppTheme.primary,
-              onPrimary: Colors.white,
-              onSurface: AppTheme.textDark,
-            ),
-          ),
+          data: Theme.of(context),
           child: child!,
         );
       },
@@ -237,7 +232,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                           child: TabBarView(
                             children: [
                               _buildCorteGeneralTab(tickets, abonos, gastos),
-                              _buildCorteRepartidorTab(tickets, abonos),
+                              _buildCorteRepartidorTab(tickets, abonos, gastos),
                             ],
                           ),
                         ),
@@ -264,28 +259,30 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text('Registrar Salida de Dinero (Gasto)'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: conceptoCtrl,
-                decoration: const InputDecoration(labelText: 'Concepto (Ej. Gasolina, Bolsas)'),
-                textCapitalization: TextCapitalization.sentences,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: montoCtrl,
-                decoration: const InputDecoration(labelText: 'Monto a retirar', prefixText: '\$'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: pinCtrl,
-                decoration: const InputDecoration(labelText: 'PIN de Confirmación'),
-                keyboardType: TextInputType.number,
-                obscureText: true,
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: conceptoCtrl,
+                  decoration: const InputDecoration(labelText: 'Concepto (Ej. Gasolina, Bolsas)'),
+                  textCapitalization: TextCapitalization.sentences,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: montoCtrl,
+                  decoration: const InputDecoration(labelText: 'Monto a retirar', prefixText: '\$'),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pinCtrl,
+                  decoration: const InputDecoration(labelText: 'PIN de Confirmación'),
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -338,6 +335,182 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
           ],
         );
       }
+    );
+  }
+
+  void _mostrarDialogoEntregarCambio(BuildContext contextOriginal) {
+    final TextEditingController montoCtrl = TextEditingController();
+    final TextEditingController pinCtrl = TextEditingController();
+    String? selectedRepartidorId;
+    List<Personal> repartidoresList = [];
+    bool provieneDeCaja = true;
+
+    showDialog(
+      context: contextOriginal,
+      builder: (ctxCambio) {
+        final fireService = Provider.of<FirebaseService>(contextOriginal, listen: false);
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Entregar Cambio a Repartidor', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+              content: SingleChildScrollView(
+                child: StreamBuilder<List<Personal>>(
+                  stream: fireService.getPersonalStream(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final repartidores = snapshot.data!
+                        .where((p) => p.rol == 'Repartidor' && p.activo)
+                        .toList();
+
+                    repartidoresList = repartidores;
+
+                    if (repartidores.isEmpty) {
+                      return const Text('No hay repartidores activos registrados.');
+                    }
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          decoration: const InputDecoration(
+                            labelText: 'Seleccionar Repartidor',
+                            border: OutlineInputBorder(),
+                          ),
+                          value: selectedRepartidorId,
+                          items: repartidores.map((r) {
+                            return DropdownMenuItem<String>(
+                              value: r.id,
+                              child: Text(r.nombre),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            setStateDialog(() {
+                              selectedRepartidorId = val;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: montoCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Monto de cambio entregado (\$)',
+                            prefixText: '\$ ',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: pinCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'PIN de Confirmación',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                          obscureText: true,
+                        ),
+                        const SizedBox(height: 12),
+                        SwitchListTile(
+                          title: const Text('Tomar de caja', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                          value: provieneDeCaja,
+                          activeColor: AppTheme.primary,
+                          contentPadding: EdgeInsets.zero,
+                          onChanged: (val) {
+                            setStateDialog(() {
+                              provieneDeCaja = val;
+                            });
+                          },
+                        ),
+                      ],
+                    );
+                  }
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctxCambio),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                  onPressed: () async {
+                    final pin = pinCtrl.text.trim();
+                    final montoStr = montoCtrl.text.trim();
+
+                    if (selectedRepartidorId == null || montoStr.isEmpty || pin.isEmpty) {
+                      ScaffoldMessenger.of(contextOriginal).showSnackBar(
+                        const SnackBar(content: Text('Por favor completa todos los campos')),
+                      );
+                      return;
+                    }
+
+                    if (pin != '1234') {
+                      ScaffoldMessenger.of(contextOriginal).showSnackBar(
+                        const SnackBar(content: Text('PIN Incorrecto')),
+                      );
+                      return;
+                    }
+
+                    final monto = double.tryParse(montoStr);
+                    if (monto == null || monto <= 0) {
+                      ScaffoldMessenger.of(contextOriginal).showSnackBar(
+                        const SnackBar(content: Text('Monto inválido')),
+                      );
+                      return;
+                    }
+
+                    final matchedRep = repartidoresList.where((r) => r.id == selectedRepartidorId);
+                    if (matchedRep.isEmpty) {
+                      ScaffoldMessenger.of(contextOriginal).showSnackBar(
+                        const SnackBar(content: Text('Repartidor no encontrado')),
+                      );
+                      return;
+                    }
+                    final selectedRepartidor = matchedRep.first;
+
+                    try {
+                      Navigator.pop(ctxCambio); // cerrar diálogo
+                      showDialog(
+                        context: contextOriginal,
+                        barrierDismissible: false,
+                        builder: (_) => const Center(child: CircularProgressIndicator()),
+                      );
+
+                      await fireService.registrarGasto(
+                        'Fondo de Cambio - ${selectedRepartidor.nombre}',
+                        monto,
+                        repartidorId: selectedRepartidor.id,
+                        repartidorNombre: selectedRepartidor.nombre,
+                        tipoGasto: 'Cambio',
+                        esDeCaja: provieneDeCaja,
+                      );
+
+                      if (contextOriginal.mounted) {
+                        Navigator.of(contextOriginal, rootNavigator: true).pop(); // cerrar loading
+                        ScaffoldMessenger.of(contextOriginal).showSnackBar(
+                          const SnackBar(content: Text('Fondo de cambio registrado correctamente')),
+                        );
+                      }
+                    } catch (e) {
+                      if (contextOriginal.mounted) {
+                        Navigator.of(contextOriginal, rootNavigator: true).pop(); // cerrar loading
+                        ScaffoldMessenger.of(contextOriginal).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Entregar Cambio', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -428,22 +601,65 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
   }
 
   Widget _buildCorteGeneralTab(List<Ticket> tickets, List<Abono> abonos, List<Gasto> gastos) {
+    final Map<String, String> localClienteNames = {};
+    for (var t in tickets) {
+      if (t.clienteId.isNotEmpty && t.clienteNombre.isNotEmpty) {
+        localClienteNames[t.clienteId] = t.clienteNombre;
+      }
+    }
+
     double totalVendido = 0;
-    double totalPorCobrar = 0;
+    double totalClientesDeben = 0;
+    double totalRepartidoresDeben = 0;
+    double totalGastos = 0;
+    double totalRecibido = 0;
 
     for (var t in tickets) {
       if (t.estadoEntrega != 'Cancelado') {
         totalVendido += t.totalVenta;
-        if (!t.pagoRepartidorConfirmado && t.saldoRestante > 0) {
-          totalPorCobrar += t.saldoRestante;
+        
+        if (t.estado == 'Con Deuda' || t.formaVenta == 'Crédito') {
+          totalClientesDeben += t.saldoRestante;
+          if (t.tipoEntrega == 'Domicilio' && !t.pagoRepartidorConfirmado) {
+            totalRepartidoresDeben += t.totalAbonado;
+          }
+        } else { // Contado y Pagado/Pendiente
+          if (t.tipoEntrega == 'Domicilio' && !t.pagoRepartidorConfirmado) {
+            totalRepartidoresDeben += t.saldoRestante;
+          }
         }
       }
     }
     
-    double totalGastos = 0;
     for (var g in gastos) {
-      totalGastos += g.monto;
+      if (g.esDeCaja) {
+        totalGastos += g.monto;
+      }
     }
+
+    double totalRecibidoClientes = 0;
+    double totalRecibidoRepartidores = 0;
+    for (var a in abonos) {
+      final isRepartidor = a.ticketId == 'ENTREGA_REPARTIDOR' || a.ticketId == 'ENTREGA_GENERAL';
+      if (isRepartidor) {
+        totalRecibidoRepartidores += a.monto;
+      } else {
+        bool wasThroughDriver = false;
+        if (a.ticketId != null && a.ticketId!.isNotEmpty) {
+          for (var t in tickets) {
+            if (t.id == a.ticketId && t.tipoEntrega == 'Domicilio') {
+              wasThroughDriver = true;
+              break;
+            }
+          }
+        }
+        if (!wasThroughDriver) {
+          totalRecibidoClientes += a.monto;
+        }
+      }
+    }
+    totalRecibido = totalRecibidoClientes + totalRecibidoRepartidores;
+    double totalPendiente = totalClientesDeben + totalRepartidoresDeben;
 
     // Prepare combined list of movimientos
     List<Map<String, dynamic>> movimientos = [];
@@ -461,36 +677,72 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
       });
     }
     for (var a in abonos) {
-      if (a.ticketId != 'ENTREGA_REPARTIDOR' && a.ticketId != 'ENTREGA_GENERAL') {
-        movimientos.add({
-          'fecha': a.fecha?.toDate() ?? DateTime.now(),
-          'tipo': 'Abono',
-          'subtipo': '',
-          'metodo': '',
-          'monto': a.monto,
-          'estado': '',
-          'nombre': 'Abono a Deuda',
-          'obj': a,
-        });
+      final isRepartidor = a.ticketId == 'ENTREGA_REPARTIDOR' || a.ticketId == 'ENTREGA_GENERAL';
+      
+      // Skip the abono document if it corresponds to a Contado counter sale (since it's already shown in the Venta row)
+      bool isContadoAbono = false;
+      if (a.ticketId != null && a.ticketId!.isNotEmpty) {
+        for (var t in tickets) {
+          if (t.id == a.ticketId && t.formaVenta == 'Contado' && (t.tipoEntrega != 'Domicilio' || t.metodoPago != 'Efectivo')) {
+            isContadoAbono = true;
+            break;
+          }
+        }
       }
+      
+      if (isContadoAbono) continue;
+
+      final String abonoName;
+      if (isRepartidor) {
+        abonoName = a.ticketId == 'ENTREGA_REPARTIDOR' 
+            ? 'Entrega de Repartidor - ${a.repartidorId ?? a.createBy}' 
+            : 'Entrega General - ${a.repartidorId ?? a.createBy}';
+      } else {
+        final String resolvedName = localClienteNames[a.clienteId] ?? a.clienteId;
+        abonoName = resolvedName.isNotEmpty ? 'Abono a Deuda - $resolvedName' : 'Abono a Deuda';
+      }
+      
+      movimientos.add({
+        'fecha': a.fecha?.toDate() ?? DateTime.now(),
+        'tipo': 'Abono',
+        'subtipo': isRepartidor ? 'Repartidor' : 'Cliente',
+        'metodo': 'Efectivo', // Default to Efectivo for abonos
+        'monto': a.monto,
+        'estado': 'Entregado',
+        'nombre': abonoName,
+        'obj': a,
+      });
     }
     for (var g in gastos) {
-      movimientos.add({
-        'fecha': g.fecha?.toDate() ?? DateTime.now(),
-        'tipo': 'Gasto',
-        'subtipo': '',
-        'metodo': '',
-        'monto': g.monto,
-        'estado': '',
-        'nombre': g.concepto,
-        'obj': g,
-      });
+      if (g.esDeCaja) {
+        movimientos.add({
+          'fecha': g.fecha?.toDate() ?? DateTime.now(),
+          'tipo': 'Gasto',
+          'subtipo': '',
+          'metodo': '',
+          'monto': g.monto,
+          'estado': '',
+          'nombre': g.concepto,
+          'obj': g,
+        });
+      } else {
+        movimientos.add({
+          'fecha': g.fecha?.toDate() ?? DateTime.now(),
+          'tipo': 'Otras Entradas',
+          'subtipo': 'Cambio',
+          'metodo': 'Externo',
+          'monto': g.monto,
+          'estado': '',
+          'nombre': 'Fondo de Cambio (Externo) - ${g.repartidorNombre ?? ''}',
+          'obj': g,
+        });
+      }
     }
     
     // Sort descending by date
     movimientos.sort((a, b) => (b['fecha'] as DateTime).compareTo(a['fecha'] as DateTime));
 
-    final bool isWide = MediaQuery.of(context).size.width >= 600;
+    final bool isWide = MediaQuery.of(context).size.width >= AppTheme.tabletBreakpoint;
 
     return Center(
       child: ConstrainedBox(
@@ -501,216 +753,230 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppTheme.primary.withOpacity(0.5), width: 2),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-                      ],
-                    ),
+                  const SizedBox(height: 16),
+                  // Seccion de Acciones principales
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Resumen General', style: TextStyle(color: AppTheme.textLight, fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            Column(
-                              children: [
-                                const Text('Vendí', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
-                                Text(_currencyFormat.format(totalVendido), style: const TextStyle(color: Colors.blue, fontSize: 18, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            Container(height: 40, width: 2, color: Colors.grey.shade300),
-                            Column(
-                              children: [
-                                const Text('Gasté', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
-                                Text(_currencyFormat.format(totalGastos), style: const TextStyle(color: Colors.red, fontSize: 18, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            Container(height: 40, width: 2, color: Colors.grey.shade300),
-                            Column(
-                              children: [
-                                const Text('Me Deben', style: TextStyle(color: AppTheme.textLight, fontSize: 14, fontWeight: FontWeight.w600)),
-                                Text(_currencyFormat.format(totalPorCobrar), style: const TextStyle(color: Colors.orange, fontSize: 18, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          ],
+                        const Text(
+                          'Centro de Acciones',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textDark),
                         ),
+                        const SizedBox(height: 12),
+                        if (isWide)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      onPressed: () => _mostrarDialogoRegistrarGasto(context),
+                                      icon: LucideIcons.arrowDownCircle,
+                                      label: 'Registrar Salida',
+                                      color: Colors.red.shade600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      onPressed: () => _mostrarDialogoEntregarCambio(context),
+                                      icon: LucideIcons.coins,
+                                      label: 'Entregar Cambio',
+                                      color: Colors.purple.shade600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      onPressed: () {
+                                        PdfReportService.generateCorteGeneralPdf(context, tickets, abonos, gastos, _filtro);
+                                      },
+                                      icon: LucideIcons.printer,
+                                      label: 'Corte General (PDF)',
+                                      color: AppTheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      onPressed: () {
+                                        PdfReportService.generateProductosVendidosPdf(context, tickets, _filtro);
+                                      },
+                                      icon: LucideIcons.package,
+                                      label: 'Productos Vendidos',
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      onPressed: () async {
+                                        showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                                        try {
+                                          final fireService = Provider.of<FirebaseService>(context, listen: false);
+                                          final ticketsDeuda = await fireService.getAllTicketsConDeudaFuture();
+                                          final abonosFut = await fireService.getAllAbonosFuture();
+                                          if (context.mounted) Navigator.pop(context);
+                                          if (context.mounted) {
+                                            PdfReportService.generateReporteDeudoresPdf(context, ticketsDeuda, abonosFut);
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            Navigator.pop(context);
+                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                          }
+                                        }
+                                      },
+                                      icon: LucideIcons.users,
+                                      label: 'Reporte Deudores',
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )
+                        else
+                          Column(
+                            children: [
+                              _buildActionButton(
+                                onPressed: () => _mostrarDialogoRegistrarGasto(context),
+                                icon: LucideIcons.arrowDownCircle,
+                                label: 'Registrar Salida de Dinero (Gasto)',
+                                color: Colors.red.shade600,
+                              ),
+                              const SizedBox(height: 8),
+                              _buildActionButton(
+                                onPressed: () => _mostrarDialogoEntregarCambio(context),
+                                icon: LucideIcons.coins,
+                                label: 'Entregar Cambio a Repartidor',
+                                color: Colors.purple.shade600,
+                              ),
+                              const SizedBox(height: 8),
+                              _buildActionButton(
+                                onPressed: () {
+                                  PdfReportService.generateCorteGeneralPdf(context, tickets, abonos, gastos, _filtro);
+                                },
+                                icon: LucideIcons.printer,
+                                label: 'Generar PDF Corte General',
+                                color: AppTheme.primary,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      onPressed: () {
+                                        PdfReportService.generateProductosVendidosPdf(context, tickets, _filtro);
+                                      },
+                                      icon: LucideIcons.package,
+                                      label: 'Prod. Vendidos',
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      onPressed: () async {
+                                        showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                                        try {
+                                          final fireService = Provider.of<FirebaseService>(context, listen: false);
+                                          final ticketsDeuda = await fireService.getAllTicketsConDeudaFuture();
+                                          final abonosFut = await fireService.getAllAbonosFuture();
+                                          if (context.mounted) Navigator.pop(context);
+                                          if (context.mounted) {
+                                            PdfReportService.generateReporteDeudoresPdf(context, ticketsDeuda, abonosFut);
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            Navigator.pop(context);
+                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                          }
+                                        }
+                                      },
+                                      icon: LucideIcons.users,
+                                      label: 'Deudores',
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                       ],
                     ),
                   ),
-                  if (isWide) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () => _mostrarDialogoRegistrarGasto(context),
-                              icon: const Icon(LucideIcons.arrowDownCircle, color: Colors.white),
-                              label: const Text('Registrar Salida', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.shade600,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                PdfReportService.generateCorteGeneralPdf(context, tickets, abonos, gastos, _filtro);
-                              },
-                              icon: const Icon(LucideIcons.printer, color: Colors.white),
-                              label: const Text('PDF Corte General', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                PdfReportService.generateProductosVendidosPdf(context, tickets, _filtro);
-                              },
-                              icon: const Icon(LucideIcons.fileText, color: Colors.white),
-                              label: const Text('PDF Prod. Vendidos', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-                                try {
-                                  final fireService = Provider.of<FirebaseService>(context, listen: false);
-                                  final ticketsDeuda = await fireService.getAllTicketsConDeudaFuture();
-                                  final abonosFut = await fireService.getAllAbonosFuture();
-                                  if (context.mounted) Navigator.pop(context);
-                                  if (context.mounted) {
-                                    PdfReportService.generateReporteDeudoresPdf(context, ticketsDeuda, abonosFut);
-                                  }
-                                } catch (e) {
-                                  if (context.mounted) {
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                                  }
-                                }
-                              },
-                              icon: const Icon(LucideIcons.users, color: Colors.white),
-                              label: const Text('PDF Deudores', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ] else ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: ElevatedButton.icon(
-                        onPressed: () => _mostrarDialogoRegistrarGasto(context),
-                        icon: const Icon(LucideIcons.arrowDownCircle, color: Colors.white),
-                        label: const Text('Registrar Salida de Dinero', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade600,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          PdfReportService.generateCorteGeneralPdf(context, tickets, abonos, gastos, _filtro);
-                        },
-                        icon: const Icon(LucideIcons.printer, color: Colors.white),
-                        label: const Text('Generar PDF Corte General', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          PdfReportService.generateProductosVendidosPdf(context, tickets, _filtro);
-                        },
-                        icon: const Icon(LucideIcons.fileText, color: Colors.white),
-                        label: const Text('Generar PDF Productos Vendidos', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-                          try {
-                            final fireService = Provider.of<FirebaseService>(context, listen: false);
-                            final ticketsDeuda = await fireService.getAllTicketsConDeudaFuture();
-                            final abonosFut = await fireService.getAllAbonosFuture();
-                            if (context.mounted) Navigator.pop(context);
-                            if (context.mounted) {
-                              PdfReportService.generateReporteDeudoresPdf(context, ticketsDeuda, abonosFut);
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                            }
-                          }
-                        },
-                        icon: const Icon(LucideIcons.users, color: Colors.white),
-                        label: const Text('Generar PDF Reporte Deudores', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 20),
+
+                  // Resumen de Caja (3 indicadores de operacion)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Resumen Operativo de Caja', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              Expanded(
+                                child: _buildStatItem(
+                                  label: 'Dinero en Caja',
+                                  amount: totalRecibido,
+                                  color: Colors.green.shade700,
+                                ),
+                              ),
+                              Container(height: 40, width: 1, color: Colors.grey.shade200),
+                              Expanded(
+                                child: _buildStatItem(
+                                  label: 'Con Repartidores',
+                                  amount: totalRepartidoresDeben,
+                                  color: Colors.orange.shade700,
+                                ),
+                              ),
+                              Container(height: 40, width: 1, color: Colors.grey.shade200),
+                              Expanded(
+                                child: _buildStatItem(
+                                  label: 'Adeudo Clientes',
+                                  amount: totalClientesDeben,
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                              Container(height: 40, width: 1, color: Colors.grey.shade200),
+                              Expanded(
+                                child: _buildStatItem(
+                                  label: 'Gastos Retirados',
+                                  amount: totalGastos,
+                                  color: Colors.red.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
-                    child: Text('Últimos Movimientos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                    child: Text('Últimos Movimientos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
                   ),
                 ],
               ),
@@ -755,11 +1021,21 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                         iconData = LucideIcons.minusCircle;
                         iconColor = Colors.red;
                         bgColor = Colors.red.shade100;
+                      } else if (tipo == 'Otras Entradas') {
+                        iconData = LucideIcons.plusCircle;
+                        iconColor = Colors.purple;
+                        bgColor = Colors.purple.shade100;
                       }
 
                       String subtitle = tipo;
                       if (tipo == 'Venta') {
-                        subtitle = 'Venta en $subtipo • $metodo';
+                        final t = mov['obj'] as Ticket;
+                        final abonoInicialText = (t.formaVenta == 'Contado' && (t.tipoEntrega != 'Domicilio' || t.metodoPago != 'Efectivo')) 
+                            ? ' • Pagado: ${_currencyFormat.format(t.totalVenta)}' 
+                            : '';
+                        subtitle = 'Venta (${t.formaVenta}) en $subtipo • $metodo$abonoInicialText';
+                      } else if (tipo == 'Otras Entradas') {
+                        subtitle = 'Otras Entradas (Cambio)';
                       }
 
                       return Card(
@@ -783,11 +1059,11 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                (tipo == 'Gasto' ? '-' : '') + _currencyFormat.format(monto), 
+                                (tipo == 'Gasto' ? '-' : (tipo == 'Otras Entradas' ? '+' : '')) + _currencyFormat.format(monto), 
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold, 
                                   fontSize: 16,
-                                  color: tipo == 'Gasto' ? Colors.red : (tipo == 'Abono' ? Colors.green : AppTheme.textDark)
+                                  color: tipo == 'Gasto' ? Colors.red : (tipo == 'Abono' || tipo == 'Otras Entradas' ? Colors.green : AppTheme.textDark)
                                 )
                               ),
                               if (estado == 'Cancelado')
@@ -807,7 +1083,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
     );
   }
 
-  Widget _buildCorteRepartidorTab(List<Ticket> tickets, List<Abono> abonos) {
+  Widget _buildCorteRepartidorTab(List<Ticket> tickets, List<Abono> abonos, List<Gasto> gastos) {
     Map<String, List<Ticket>> ticketsPorRepartidor = {};
     
     // Agrupar repartidores de abonos también (por si un repartidor no tuvo ventas hoy pero sí cobró un abono)
@@ -841,12 +1117,6 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
               final ticketsRep = ticketsPorRepartidor[repartidor]!;
               
               double totalAsignado = 0;
-              double totalEntregado = 0;
-              double totalPendiente = 0;
-              double totalEfectivo = 0;
-              double totalTransferencia = 0;
-              int countCompletados = 0;
-              int countPendientes = 0;
               int countCancelados = 0;
 
               for (var t in ticketsRep) {
@@ -854,19 +1124,25 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                   countCancelados++;
                 } else {
                   totalAsignado += t.totalVenta;
-                  totalEntregado += t.totalAbonado;
-                  totalPendiente += t.saldoRestante;
-                  
-                  if (t.pagoRepartidorConfirmado) {
-                    countCompletados++;
+                }
+              }
+
+              // Calcular fondo de cambio dado al repartidor hoy
+              double totalCambioDado = 0;
+              for (var g in gastos) {
+                if (g.tipoGasto == 'Cambio' && g.repartidorNombre?.trim().toLowerCase() == repartidor.trim().toLowerCase()) {
+                  totalCambioDado += g.monto;
+                }
+              }
+
+              // Calcular las ventas en efectivo cobradas por el repartidor hoy
+              double totalVentasEfectivo = 0;
+              for (var t in ticketsRep) {
+                if (t.estadoEntrega != 'Cancelado' && t.metodoPago == 'Efectivo') {
+                  if (t.formaVenta == 'Contado') {
+                    totalVentasEfectivo += t.totalVenta;
                   } else {
-                    countPendientes++;
-                  }
-                  
-                  if (t.metodoPago == 'Transferencia') {
-                    totalTransferencia += t.totalAbonado;
-                  } else {
-                    totalEfectivo += t.totalAbonado;
+                    totalVentasEfectivo += t.totalAbonado;
                   }
                 }
               }
@@ -877,12 +1153,22 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                   bool isTicketInList = tickets.any((t) => t.id == a.ticketId);
                   if (!isTicketInList && (a.repartidorId == repartidor || a.createBy == repartidor)) {
                     abonosCobrados += a.monto;
+                    totalVentasEfectivo += a.monto;
                   }
                 }
               }
 
-              // No sumamos a totalEntregado ni restamos de totalPendiente 
-              // porque t.totalAbonado y t.saldoRestante ya lo manejan.
+              // Calcular entregas reales de efectivo del repartidor
+              double totalEntregado = 0;
+              for (var a in abonos) {
+                if ((a.ticketId == 'ENTREGA_REPARTIDOR' || a.ticketId == 'ENTREGA_GENERAL') && a.repartidorId == repartidor) {
+                  totalEntregado += a.monto;
+                }
+              }
+
+              double totalAEntregar = totalVentasEfectivo + totalCambioDado;
+              double totalPendiente = totalAEntregar - totalEntregado;
+              totalPendiente = totalPendiente < 0 ? 0.0 : totalPendiente;
 
               return Card(
                 elevation: 0,
@@ -911,7 +1197,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                             iconSize: 24,
                             icon: const Icon(LucideIcons.printer, color: AppTheme.primary),
                             onPressed: () {
-                              PdfReportService.generateCorteRepartidorPdf(context, repartidor, ticketsRep, abonos, _filtro);
+                              PdfReportService.generateCorteRepartidorPdf(context, repartidor, ticketsRep, abonos, gastos, _filtro);
                             },
                           ),
                         ],
@@ -924,23 +1210,47 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Valor Mercancía', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
-                              Text(_currencyFormat.format(totalAsignado), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textDark)),
+                              const Text('Mercancía', style: TextStyle(color: Colors.blue, fontSize: 11, fontWeight: FontWeight.bold)),
+                              Text(_currencyFormat.format(totalAsignado), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textDark)),
                             ],
                           ),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              const Text('Debe entregar', style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold)),
-                              Text(_currencyFormat.format(totalPendiente), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textDark)),
+                              const Text('Fondo Cambio', style: TextStyle(color: Colors.purple, fontSize: 11, fontWeight: FontWeight.bold)),
+                              Text(_currencyFormat.format(totalCambioDado), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textDark)),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Text('Total a Entregar', style: TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold)),
+                              Text(_currencyFormat.format(totalAEntregar), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textDark)),
                             ],
                           ),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              const Text('Entregó a caja', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
-                              Text(_currencyFormat.format(totalEntregado), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textDark)),
+                              const Text('Entregó a caja', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                              Text(_currencyFormat.format(totalEntregado), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textDark)),
                             ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Divider(height: 8, thickness: 0.5),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Saldo Pendiente:', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.bold, fontSize: 14)),
+                          Text(
+                            _currencyFormat.format(totalPendiente),
+                            style: TextStyle(
+                              color: totalPendiente > 0 ? Colors.red.shade700 : Colors.green.shade700,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
                         ],
                       ),
@@ -949,8 +1259,8 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Abonos:', style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.w600)),
-                            Text(_currencyFormat.format(abonosCobrados), style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold)),
+                            const Text('De los cuales fueron Abonos:', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500)),
+                            Text(_currencyFormat.format(abonosCobrados), style: const TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
                           ],
                         )
                       ]
@@ -975,6 +1285,42 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
         ),
         const SizedBox(height: 4),
         Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _buildActionButton({
+    required VoidCallback onPressed,
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, color: Colors.white, size: 20),
+      label: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required String label,
+    required double amount,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Text(
+          _currencyFormat.format(amount),
+          style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
       ],
     );
   }

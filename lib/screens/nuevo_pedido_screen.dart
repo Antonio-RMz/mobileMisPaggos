@@ -201,7 +201,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    if (inputVal > 0)
+                    if (cantidadFinal > 0)
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(8)),
@@ -225,7 +225,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                           ],
                         ),
                       ),
-                    if (inputVal > 0) ...[
+                    if (cantidadFinal > 0) ...[
                       const SizedBox(height: 16),
                       CheckboxListTile(
                         title: const Text('¿Cambiar total a cobrar?', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -425,8 +425,6 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
 
     final double totalVenta = cart.totalCart;
 
-    String? repartidorId;
-    String? repartidorNombre;
     final String clienteNombreFinal = _currentCliente.id != '' 
         ? '${_currentCliente.nombre} ${_currentCliente.apPaterno}'.trim() 
         : 'Público en General';
@@ -435,8 +433,12 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
     final bool hasCatalogo = cart.items.any((i) => i.producto.seccion != 'carniceria' && i.producto.seccion != 'general');
     final bool isCarniceria = hasCarniceria && !hasCatalogo;
 
+    String? repartidorId = hasCatalogo ? 'SUCURSAL' : null;
+    String? repartidorNombre = hasCatalogo ? 'Sucursal (Venta en tienda)' : null;
+
     final TextEditingController abonoCtrl = TextEditingController();
     bool esCredito = false;
+    String metodoPago = 'Efectivo';
 
     showModalBottomSheet(
       context: context,
@@ -528,29 +530,40 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                     builder: (context, snapshot) {
                       List<Personal> repartidores = [];
                       
-                      if (snapshot.hasData) {
-                        repartidores = snapshot.data!.where((p) => p.activo).toList();
-                      }
-
-                      repartidores.insert(0, Personal(
-                        id: 'SUCURSAL',
-                        nombre: 'Sucursal (Venta en tienda)',
-                        telefono: '',
-                        rol: 'Repartidor',
-                        activo: true,
-                        createAt: Timestamp.now(),
-                      ));
-
-                      if (repartidores.isEmpty) {
-                        // Si no hay datos o estamos offline sin caché, proveemos un repartidor de rescate
+                      if (hasCatalogo) {
                         repartidores.add(Personal(
-                          id: 'REP_TEMP_OFFLINE',
-                          nombre: 'Repartidor Temporal (Offline)',
+                          id: 'SUCURSAL',
+                          nombre: 'Sucursal (Venta en tienda)',
                           telefono: '',
                           rol: 'Repartidor',
                           activo: true,
                           createAt: Timestamp.now(),
                         ));
+                      } else {
+                        if (snapshot.hasData) {
+                          repartidores = snapshot.data!.where((p) => p.activo).toList();
+                        }
+
+                        repartidores.insert(0, Personal(
+                          id: 'SUCURSAL',
+                          nombre: 'Sucursal (Venta en tienda)',
+                          telefono: '',
+                          rol: 'Repartidor',
+                          activo: true,
+                          createAt: Timestamp.now(),
+                        ));
+
+                        if (repartidores.isEmpty) {
+                          // Si no hay datos o estamos offline sin caché, proveemos un repartidor de rescate
+                          repartidores.add(Personal(
+                            id: 'REP_TEMP_OFFLINE',
+                            nombre: 'Repartidor Temporal (Offline)',
+                            telefono: '',
+                            rol: 'Repartidor',
+                            activo: true,
+                            createAt: Timestamp.now(),
+                          ));
+                        }
                       }
                       
                       return DropdownButtonFormField<String>(
@@ -559,12 +572,14 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                           labelText: 'Asignar Repartidor',
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           prefixIcon: const Icon(Icons.two_wheeler, color: Colors.orange),
+                          helperText: hasCatalogo ? 'Venta de catálogo: Solo entrega en sucursal' : null,
+                          helperStyle: hasCatalogo ? const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold) : null,
                         ),
                         hint: const Text('Seleccionar repartidor...'),
                         items: repartidores.map((r) {
                           return DropdownMenuItem(value: r.id, child: Text(r.nombre));
                         }).toList(),
-                        onChanged: (val) {
+                        onChanged: hasCatalogo ? null : (val) {
                           setModalState(() {
                             repartidorId = val;
                             repartidorNombre = repartidores.firstWhere((r) => r.id == val).nombre;
@@ -573,14 +588,14 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                       );
                     },
                   ),
-                  if (repartidorId == 'SUCURSAL') ...[
+                  if (repartidorId != null) ...[
                     const SizedBox(height: 16),
                     Wrap(
                       spacing: 8.0,
                       runSpacing: 8.0,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        const Text('Tipo de Pago:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const Text('Forma de Venta:', style: TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(width: 8),
                         ChoiceChip(
                           label: const Text('Completo (Contado)'),
@@ -607,7 +622,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                           border: OutlineInputBorder(),
                         ),
                       ),
-                    ]
+                    ],
                   ],
                   const SizedBox(height: 30),
 
@@ -644,22 +659,22 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                         double abonoIngresado = 0.0;
                         String estadoPedido = 'Con Deuda';
 
-                        if (repartidorId == 'SUCURSAL') {
-                          if (!esCredito) {
+                        if (!esCredito) {
+                          if (repartidorId == 'SUCURSAL') {
                             abonoIngresado = totalVenta;
                             estadoPedido = 'Pagado';
                           } else {
-                            abonoIngresado = double.tryParse(abonoCtrl.text) ?? 0.0;
-                            if (abonoIngresado >= totalVenta) {
-                              abonoIngresado = totalVenta;
-                              estadoPedido = 'Pagado';
-                            } else {
-                              estadoPedido = 'Con Deuda';
-                            }
+                            abonoIngresado = 0.0;
+                            estadoPedido = 'Pendiente';
                           }
                         } else {
-                          abonoIngresado = 0.0;
-                          estadoPedido = 'Pendiente';
+                          abonoIngresado = double.tryParse(abonoCtrl.text) ?? 0.0;
+                          if (abonoIngresado >= totalVenta) {
+                            abonoIngresado = totalVenta;
+                            estadoPedido = 'Pagado';
+                          } else {
+                            estadoPedido = 'Con Deuda';
+                          }
                         }
 
                         final ticket = Ticket(
@@ -684,6 +699,10 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                           totalVenta: totalVenta,
                           totalAbonado: abonoIngresado,
                           estado: estadoPedido,
+                          metodoPago: metodoPago,
+                          formaVenta: esCredito ? 'Crédito' : 'Contado',
+                          deudaManualAsignada: esCredito,
+                          pagoRepartidorConfirmado: (repartidorId == 'SUCURSAL') || (esCredito && abonoIngresado == 0.0),
                           createBy: userName,
                         );
                         
@@ -1170,8 +1189,8 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
               unselectedLabelColor: AppTheme.textLight,
               labelStyle: TextStyle(fontWeight: FontWeight.bold),
               tabs: [
-                Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Catálogo'),
                 Tab(icon: Icon(Icons.set_meal_outlined), text: 'Carnicería'),
+                Tab(icon: Icon(Icons.inventory_2_outlined), text: 'Catálogo'),
               ],
             ),
           ),
@@ -1215,8 +1234,8 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                         final productos = snapshot.data!;
                         return TabBarView(
                           children: [
-                            _buildProductList(cart, context, productos, isCarniceria: false),
                             _buildProductList(cart, context, productos, isCarniceria: true),
+                            _buildProductList(cart, context, productos, isCarniceria: false),
                           ],
                         );
                       }

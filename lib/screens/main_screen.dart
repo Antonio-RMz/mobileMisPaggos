@@ -37,7 +37,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final double screenWidth = MediaQuery.of(context).size.width;
-    final bool isWideScreen = screenWidth >= 600;
+    final bool isWideScreen = screenWidth >= AppTheme.tabletBreakpoint;
 
     if (isWideScreen) {
       return Scaffold(

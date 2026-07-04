@@ -14,6 +14,6 @@ void main() {
     pdf.save();
     print('Success');
   } catch (e) {
-    print('Error: \');
+    print('Error: $e');
   }
 }

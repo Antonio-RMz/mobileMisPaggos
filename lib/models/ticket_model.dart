@@ -100,6 +100,7 @@ class Ticket {
   String metodoPago; // 'Efectivo', 'Transferencia'
   String? cobradoPor; // Quien recibió el dinero
   bool deudaManualAsignada; // Indica si la deuda ya fue transferida manualmente al cliente
+  String formaVenta; // 'Contado', 'Crédito'
 
   String createBy;
   Timestamp? createAt;
@@ -126,6 +127,7 @@ class Ticket {
     this.metodoPago = 'Efectivo',
     this.cobradoPor,
     this.deudaManualAsignada = false,
+    this.formaVenta = 'Contado',
     this.createBy = 'Sistema',
     this.createAt,
     this.updateBy = 'Sistema',
@@ -136,7 +138,12 @@ class Ticket {
 
   factory Ticket.fromMap(String id, Map<String, dynamic> data) {
     var list = data['productos'] as List? ?? [];
-    List<TicketItem> itemsList = list.map((i) => TicketItem.fromMap(i as Map<String, dynamic>)).toList();
+    List<TicketItem> itemsList = [];
+    for (var item in list) {
+      if (item is Map) {
+        itemsList.add(TicketItem.fromMap(Map<String, dynamic>.from(item)));
+      }
+    }
 
     return Ticket(
       id: id,
@@ -158,6 +165,7 @@ class Ticket {
       metodoPago: data['metodoPago'] ?? 'Efectivo',
       cobradoPor: data['cobradoPor'],
       deudaManualAsignada: data['deudaManualAsignada'] ?? false,
+      formaVenta: data['formaVenta'] ?? ( (data['estado'] == 'Con Deuda') ? 'Crédito' : 'Contado' ),
       createBy: data['createBy'] ?? '',
       createAt: data['createAt'],
       updateBy: data['updateBy'] ?? '',
@@ -186,6 +194,7 @@ class Ticket {
       'metodoPago': metodoPago,
       'cobradoPor': cobradoPor,
       'deudaManualAsignada': deudaManualAsignada,
+      'formaVenta': formaVenta,
       'createBy': createBy,
       'createAt': createAt,
       'updateBy': updateBy,

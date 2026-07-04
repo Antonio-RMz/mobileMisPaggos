@@ -9,6 +9,12 @@ class Gasto {
   String createBy;
   Timestamp? createAt;
 
+  // Campos para registrar cambio a repartidores
+  String? repartidorId;
+  String? repartidorNombre;
+  String? tipoGasto; // 'General' o 'Cambio'
+  bool esDeCaja;
+
   Gasto({
     this.id = '',
     this.empresaId = '',
@@ -17,6 +23,10 @@ class Gasto {
     this.fecha,
     this.createBy = 'Sistema',
     this.createAt,
+    this.repartidorId,
+    this.repartidorNombre,
+    this.tipoGasto = 'General',
+    this.esDeCaja = true,
   });
 
   factory Gasto.fromMap(String id, Map<String, dynamic> data) {
@@ -28,6 +38,10 @@ class Gasto {
       fecha: data['fecha'],
       createBy: data['createBy'] ?? 'Sistema',
       createAt: data['createAt'],
+      repartidorId: data['repartidorId'],
+      repartidorNombre: data['repartidorNombre'],
+      tipoGasto: data['tipoGasto'] ?? 'General',
+      esDeCaja: data['esDeCaja'] ?? true,
     );
   }
 
@@ -39,6 +53,10 @@ class Gasto {
       'fecha': fecha ?? FieldValue.serverTimestamp(),
       'createBy': createBy,
       'createAt': createAt ?? FieldValue.serverTimestamp(),
+      'repartidorId': repartidorId,
+      'repartidorNombre': repartidorNombre,
+      'tipoGasto': tipoGasto ?? 'General',
+      'esDeCaja': esDeCaja,
     };
   }
 }

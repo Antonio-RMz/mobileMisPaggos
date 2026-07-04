@@ -22,20 +22,20 @@ class ProductosMainScreen extends StatelessWidget {
             labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
             tabs: [
               Tab(
-                icon: Icon(Icons.inventory_2_outlined),
-                text: 'Catálogo',
-              ),
-              Tab(
                 icon: Icon(Icons.set_meal_outlined),
                 text: 'Carnicería',
+              ),
+              Tab(
+                icon: Icon(Icons.inventory_2_outlined),
+                text: 'Catálogo',
               ),
             ],
           ),
         ),
         body: const TabBarView(
           children: [
-            CatalogoView(),
             CarniceriaView(),
+            CatalogoView(),
           ],
         ),
       ),

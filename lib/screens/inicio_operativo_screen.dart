@@ -82,7 +82,7 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
       builder: (context, dashboard, child) {
         if (dashboard.isLoading) return const SizedBox();
         final double screenWidth = MediaQuery.of(context).size.width;
-        final bool isWide = screenWidth >= 600;
+        final bool isWide = screenWidth >= AppTheme.tabletBreakpoint;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

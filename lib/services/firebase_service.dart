@@ -1337,9 +1337,11 @@ class FirebaseService {
 
       // 3. Calcular la deuda real
       double totalVentaDeuda = 0;
+      final Set<String> debtTicketIds = {};
       for (var t in tickets) {
         if (t.formaVenta == 'Crédito' || t.estado == 'Con Deuda' || t.deudaManualAsignada) {
           totalVentaDeuda += t.totalVenta;
+          debtTicketIds.add(t.id);
         }
       }
 
@@ -1349,8 +1351,7 @@ class FirebaseService {
           totalAbonadoDeuda += a.monto;
         } else {
           // Solo sumamos abonos asociados a tickets que generen deuda para el cliente
-          final t = tickets.any((ticket) => ticket.id == a.ticketId);
-          if (t) {
+          if (debtTicketIds.contains(a.ticketId)) {
             totalAbonadoDeuda += a.monto;
           }
         }

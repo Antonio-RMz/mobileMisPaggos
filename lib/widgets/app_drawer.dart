@@ -85,13 +85,24 @@ class AppDrawer extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        'Administración',
-                        style: TextStyle(
+                      Text(
+                        'Empresa: ${userProvider.empresaId.isEmpty ? "Ninguna" : userProvider.empresaId}',
+                        style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'UID: ${userProvider.uid}',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),

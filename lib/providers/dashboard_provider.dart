@@ -8,8 +8,15 @@ class DashboardProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   UserProvider? _userProvider;
 
+  String? _lastEmpresaId;
   void updateUserProvider(UserProvider userProvider) {
     _userProvider = userProvider;
+    if (_lastEmpresaId != userProvider.empresaId) {
+      _lastEmpresaId = userProvider.empresaId;
+      if (userProvider.isInitialized) {
+        cargarMetricas();
+      }
+    }
   }
 
   double _totalPorCobrar = 0.0;

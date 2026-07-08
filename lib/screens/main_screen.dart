@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
 
 import '../theme/app_theme.dart';
+import '../providers/user_provider.dart';
 import 'cliente_list_screen.dart';
 import 'productos_main_screen.dart';
 import 'corte_caja_screen.dart';
@@ -36,6 +38,20 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    if (userProvider.loginError.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error de Autenticación: ${userProvider.loginError}'),
+            backgroundColor: AppTheme.error,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+        userProvider.clearLoginError();
+      });
+    }
+
     final double screenWidth = MediaQuery.of(context).size.width;
     final bool isWideScreen = screenWidth >= AppTheme.tabletBreakpoint;
 

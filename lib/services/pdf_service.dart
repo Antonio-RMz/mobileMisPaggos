@@ -31,7 +31,7 @@ class PdfService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              pw.Text('CARNICERÍA STEWARD', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.Text('CARNICERÍA DORISS', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 5),
               pw.Text('Ticket #${ticket.folio}', style: const pw.TextStyle(fontSize: 8)),
               pw.Text('Fecha: ${dateFormat.format(ticket.fecha?.toDate() ?? DateTime.now())}', style: const pw.TextStyle(fontSize: 8)),
@@ -146,7 +146,7 @@ class PdfService {
                   children: [
                     pw.Text('ESTADO DE CUENTA', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
                     pw.SizedBox(height: 5),
-                    pw.Text('Carnicería Steward', style: const pw.TextStyle(fontSize: 14)),
+                    pw.Text('Carnicería Doriss', style: const pw.TextStyle(fontSize: 14)),
                     pw.Text('Fecha de Emisión: ${dateFormatShort.format(DateTime.now())}', style: const pw.TextStyle(fontSize: 12)),
                   ],
                 ),
@@ -187,76 +187,68 @@ class PdfService {
                 ]
               )
             ),
-            pw.SizedBox(height: 30),
-
-            // Historial Detallado de Movimientos
-            pw.Text('DETALLE DE DEUDAS Y PAGOS PENDIENTES', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 10),
+            pw.Text('HISTORIAL DE COMPRAS A CRÉDITO / DEUDAS PENDIENTES', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
             pw.SizedBox(height: 10),
             
             ...() {
-              // Filtrar solo las deudas (tickets con saldo restante mayor a 0, no cancelados)
-              final deudas = tickets.where((t) => (t.totalVenta - t.totalAbonado) > 0 && t.estado != 'Pagado' && t.estadoEntrega != 'Cancelado').toList();
-              
-              if (deudas.isEmpty) {
+              final creditTickets = tickets.where((t) => t.formaVenta == 'Crédito' || t.estado == 'Con Deuda' || t.saldoRestante > 0).toList();
+              if (creditTickets.isEmpty) {
                 return [
+                  pw.SizedBox(height: 10),
+                  pw.Center(child: pw.Text('El cliente no tiene compras a crédito registradas.', style: const pw.TextStyle(fontSize: 12))),
                   pw.SizedBox(height: 20),
-                  pw.Center(child: pw.Text('El cliente no presenta deudas pendientes.', style: const pw.TextStyle(fontSize: 12))),
                 ];
               }
-
-              // Build table data
-              final tableData = List<List<dynamic>>.generate(deudas.length, (index) {
-                final d = deudas[index];
-                final fecha = d.fecha != null ? dateFormatShort.format(d.fecha!.toDate()) : '-';
-                final productos = d.productos.map((p) => p.descripcionAmigable).join(', ');
+              
+              final ticketData = List<List<dynamic>>.generate(creditTickets.length, (index) {
+                final t = creditTickets[index];
+                final fecha = t.fecha != null ? dateFormatShort.format(t.fecha!.toDate()) : '-';
+                final productosDetalle = t.productos.map((p) => p.descripcionAmigable).join('\n');
                 
                 return [
-                  d.folio.isNotEmpty ? d.folio : 'S/F',
                   fecha,
-                  productos,
-                  currencyFormat.format(d.totalVenta),
-                  currencyFormat.format(d.totalAbonado),
-                  currencyFormat.format(d.totalVenta - d.totalAbonado),
+                  t.folio,
+                  productosDetalle,
+                  currencyFormat.format(t.totalVenta),
+                  currencyFormat.format(t.totalAbonado),
+                  currencyFormat.format(t.saldoRestante),
                 ];
               });
               
-              // Sumar total calculado
-              final totalDeudaCalc = deudas.fold(0.0, (sum, item) => sum + (item.totalVenta - item.totalAbonado));
-              tableData.add(['', '', '', '', 'TOTAL:', currencyFormat.format(totalDeudaCalc)]);
-
               return [
                 pw.TableHelper.fromTextArray(
-                  headers: ['Folio', 'Fecha', 'Concepto (Productos)', 'Total Venta', 'Abonado', 'Saldo Pendiente'],
-                  data: tableData,
-                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 12),
-                  headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey600),
+                  headers: ['Fecha', 'Folio', 'Productos', 'Total Compra', 'Monto Abonado', 'Saldo Pendiente'],
+                  data: ticketData,
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10),
+                  headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
                   rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
-                  cellAlignment: pw.Alignment.centerLeft,
+                  cellAlignment: pw.Alignment.topLeft,
                   cellAlignments: {
-                    0: pw.Alignment.centerLeft,
-                    1: pw.Alignment.centerLeft,
-                    2: pw.Alignment.centerLeft,
-                    3: pw.Alignment.centerRight,
-                    4: pw.Alignment.centerRight,
-                    5: pw.Alignment.centerRight,
+                    0: pw.Alignment.topLeft,
+                    1: pw.Alignment.topLeft,
+                    2: pw.Alignment.topLeft,
+                    3: pw.Alignment.topRight,
+                    4: pw.Alignment.topRight,
+                    5: pw.Alignment.topRight,
                   },
                   columnWidths: {
                     0: const pw.FlexColumnWidth(1.5),
                     1: const pw.FlexColumnWidth(1.5),
-                    2: const pw.FlexColumnWidth(3.0),
-                    3: const pw.FlexColumnWidth(1.5),
-                    4: const pw.FlexColumnWidth(1.5),
-                    5: const pw.FlexColumnWidth(1.5),
+                    2: const pw.FlexColumnWidth(4.5),
+                    3: const pw.FlexColumnWidth(1.8),
+                    4: const pw.FlexColumnWidth(1.8),
+                    5: const pw.FlexColumnWidth(1.8),
                   },
-                  cellStyle: const pw.TextStyle(fontSize: 11),
-                  headerPadding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                  cellPadding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                )
+                  cellStyle: const pw.TextStyle(fontSize: 9),
+                  headerPadding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  cellPadding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                ),
+                pw.SizedBox(height: 20),
               ];
             }(),
-            
-            pw.SizedBox(height: 20),
+
             pw.Text('HISTORIAL DE ABONOS RECIENTES', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
             pw.SizedBox(height: 10),
@@ -336,23 +328,19 @@ class PdfService {
       MaterialPageRoute(
         builder: (context) => Scaffold(
           appBar: AppBar(title: const Text('Estado de Cuenta')),
-          body: InteractiveViewer(
-            minScale: 1.0,
-            maxScale: 4.0,
-            child: PdfPreview(
-              build: (format) async {
-                try {
-                  return await pdf.save();
-                } catch (e, stack) {
-                  debugPrint('ERROR EN PDF ESTADO DE CUENTA: $e\n$stack');
-                  rethrow;
-                }
-              },
-              canChangeOrientation: false,
-              canChangePageFormat: false,
-              canDebug: false,
-              pdfFileName: 'EstadoCuenta_${cliente.nombreCompleto.replaceAll(' ', '_')}.pdf',
-            ),
+          body: PdfPreview(
+            build: (format) async {
+              try {
+                return await pdf.save();
+              } catch (e, stack) {
+                debugPrint('ERROR EN PDF ESTADO DE CUENTA: $e\n$stack');
+                rethrow;
+              }
+            },
+            canChangeOrientation: false,
+            canChangePageFormat: false,
+            canDebug: false,
+            pdfFileName: 'EstadoCuenta_${cliente.nombreCompleto.replaceAll(' ', '_')}.pdf',
           ),
         ),
       ),
@@ -385,7 +373,7 @@ class PdfService {
                   children: [
                     pw.Text('CORTE DE CAJA', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
                     pw.SizedBox(height: 5),
-                    pw.Text('Carnicería Steward', style: const pw.TextStyle(fontSize: 14)),
+                    pw.Text('Carnicería Doriss', style: const pw.TextStyle(fontSize: 14)),
                   ]
                 ),
                 pw.Column(

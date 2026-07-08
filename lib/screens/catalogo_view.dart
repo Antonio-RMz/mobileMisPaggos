@@ -224,7 +224,7 @@ class _CatalogoViewState extends State<CatalogoView> {
           // Lista de Productos
           Expanded(
             child: StreamBuilder<List<Producto>>(
-              stream: _firebaseService.getProductosStream(),
+              stream: Provider.of<FirebaseService>(context).getProductosStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -242,7 +242,8 @@ class _CatalogoViewState extends State<CatalogoView> {
                   final noEsCarniceria = p.seccion != 'carniceria';
                   final queryNorm = StringUtils.removeDiacritics(_searchQuery.toLowerCase().trim());
                   final nombreNorm = StringUtils.removeDiacritics(p.nombre.toLowerCase());
-                  final matchBusqueda = nombreNorm.contains(queryNorm);
+                  final codigoNorm = StringUtils.removeDiacritics(p.codigo.toLowerCase());
+                  final matchBusqueda = nombreNorm.contains(queryNorm) || codigoNorm.contains(queryNorm);
                   final matchCategoria = _filtroCategoria == 'Todos' || p.categoria == _filtroCategoria;
                   return noEsCarniceria && matchBusqueda && matchCategoria;
                 }).toList();

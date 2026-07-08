@@ -59,7 +59,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
   }
 
   Stream<List<Ticket>> _getTicketsStream() {
-    final empresaId = Provider.of<UserProvider>(context, listen: false).empresaId;
+    final empresaId = Provider.of<UserProvider>(context).empresaId;
     return FirebaseFirestore.instance
         .collection('tickets')
         .where('empresaId', isEqualTo: empresaId)
@@ -359,6 +359,39 @@ class _VentasListScreenState extends State<VentasListScreen> {
                 if (ticket.tipoEntrega == 'Domicilio' && ticket.repartidorNombre != null) ...[
                   const SizedBox(height: 4),
                   Text('Repartidor: ${ticket.repartidorNombre}', style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+                ],
+                if (ticket.estadoEntrega == 'Cancelado' && ticket.motivoCancelacion?.isNotEmpty == true) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.error.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.error.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Motivo de Cancelación:',
+                          style: TextStyle(
+                            color: AppTheme.error,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          ticket.motivoCancelacion!,
+                          style: const TextStyle(
+                            color: AppTheme.error,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
                 const Divider(height: 32),
                 const Text('Productos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),

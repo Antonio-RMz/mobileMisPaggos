@@ -248,7 +248,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
     );
   }
 
-  void _mostrarDialogoRegistrarGasto(BuildContext contextOriginal) {
+  void _mostrarDialogoRegistrarGasto(BuildContext contextOriginal, double dineroEnCaja) {
     final TextEditingController conceptoCtrl = TextEditingController();
     final TextEditingController montoCtrl = TextEditingController();
     final TextEditingController pinCtrl = TextEditingController();
@@ -262,7 +262,13 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text(
+                  'Dinero disponible en caja: ${_currencyFormat.format(dineroEnCaja)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: conceptoCtrl,
                   decoration: const InputDecoration(labelText: 'Concepto (Ej. Gasolina, Bolsas)'),
@@ -311,34 +317,63 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                   return;
                 }
 
-                try {
-                  Navigator.pop(ctxGasto);
-                  showDialog(context: contextOriginal, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-                  
-                  final fireService = Provider.of<FirebaseService>(contextOriginal, listen: false);
-                  await fireService.registrarGasto(concepto, monto);
-
-                  if (contextOriginal.mounted) {
-                    Navigator.of(contextOriginal, rootNavigator: true).pop();
-                    ScaffoldMessenger.of(contextOriginal).showSnackBar(const SnackBar(content: Text('Gasto registrado correctamente')));
-                  }
-                } catch (e) {
-                  if (contextOriginal.mounted) {
-                    Navigator.of(contextOriginal, rootNavigator: true).pop();
-                    ScaffoldMessenger.of(contextOriginal).showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
+                if (monto > dineroEnCaja) {
+                  ScaffoldMessenger.of(contextOriginal).showSnackBar(
+                    SnackBar(content: Text('No hay dinero suficiente en caja. Disponible: ${_currencyFormat.format(dineroEnCaja)}')),
+                  );
+                  return;
                 }
+
+                Navigator.pop(ctxGasto);
+
+                // Advertencia secundaria
+                showDialog(
+                  context: contextOriginal,
+                  builder: (ctxConfirm) => AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    title: const Text('Confirmar Salida de Caja', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    content: Text('¿Estás seguro de registrar un gasto de ${_currencyFormat.format(monto)} para "$concepto"?\n\nEste dinero se restará de la caja física.'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctxConfirm), child: const Text('No, cancelar', style: TextStyle(color: Colors.grey))),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                        onPressed: () async {
+                          Navigator.pop(ctxConfirm);
+                          
+                          final safeContext = contextOriginal;
+                          showDialog(context: safeContext, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                          
+                          try {
+                            final fireService = Provider.of<FirebaseService>(safeContext, listen: false);
+                            await fireService.registrarGasto(concepto, monto);
+
+                            if (safeContext.mounted) {
+                              Navigator.of(safeContext, rootNavigator: true).pop(); // cerrar loading
+                              ScaffoldMessenger.of(safeContext).showSnackBar(const SnackBar(content: Text('Gasto registrado correctamente')));
+                            }
+                          } catch (e) {
+                            if (safeContext.mounted) {
+                              Navigator.of(safeContext, rootNavigator: true).pop(); // cerrar loading
+                              ScaffoldMessenger.of(safeContext).showSnackBar(SnackBar(content: Text('Error: $e')));
+                            }
+                          }
+                        },
+                        child: const Text('Sí, Registrar Gasto', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                );
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700),
               child: const Text('Registrar Gasto', style: TextStyle(color: Colors.white)),
             ),
           ],
         );
-      }
+      },
     );
   }
 
-  void _mostrarDialogoEntregarCambio(BuildContext contextOriginal) {
+  void _mostrarDialogoEntregarCambio(BuildContext contextOriginal, double dineroEnCaja) {
     final TextEditingController montoCtrl = TextEditingController();
     final TextEditingController pinCtrl = TextEditingController();
     String? selectedRepartidorId;
@@ -375,6 +410,13 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (provieneDeCaja) ...[
+                          Text(
+                            'Dinero disponible en caja: ${_currencyFormat.format(dineroEnCaja)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         DropdownButtonFormField<String>(
                           decoration: const InputDecoration(
                             labelText: 'Seleccionar Repartidor',
@@ -463,6 +505,13 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                       return;
                     }
 
+                    if (provieneDeCaja && monto > dineroEnCaja) {
+                      ScaffoldMessenger.of(contextOriginal).showSnackBar(
+                        SnackBar(content: Text('No hay dinero suficiente en caja para este cambio. Disponible: ${_currencyFormat.format(dineroEnCaja)}')),
+                      );
+                      return;
+                    }
+
                     final matchedRep = repartidoresList.where((r) => r.id == selectedRepartidorId);
                     if (matchedRep.isEmpty) {
                       ScaffoldMessenger.of(contextOriginal).showSnackBar(
@@ -472,37 +521,59 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                     }
                     final selectedRepartidor = matchedRep.first;
 
-                    try {
-                      Navigator.pop(ctxCambio); // cerrar diálogo
-                      showDialog(
-                        context: contextOriginal,
-                        barrierDismissible: false,
-                        builder: (_) => const Center(child: CircularProgressIndicator()),
-                      );
+                    Navigator.pop(ctxCambio); // cerrar diálogo
 
-                      await fireService.registrarGasto(
-                        'Fondo de Cambio - ${selectedRepartidor.nombre}',
-                        monto,
-                        repartidorId: selectedRepartidor.id,
-                        repartidorNombre: selectedRepartidor.nombre,
-                        tipoGasto: 'Cambio',
-                        esDeCaja: provieneDeCaja,
-                      );
+                    // Confirmacion secundaria
+                    showDialog(
+                      context: contextOriginal,
+                      builder: (ctxConfirm) => AlertDialog(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        title: const Text('Confirmar Entrega de Cambio', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                        content: Text('¿Estás seguro de entregar ${_currencyFormat.format(monto)} al repartidor ${selectedRepartidor.nombre}?\n\n${provieneDeCaja ? "Este monto se tomará y restará de la caja física." : "Este monto proviene de fondos externos (No afecta la caja física)."}'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctxConfirm), child: const Text('No, cancelar', style: TextStyle(color: Colors.grey))),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                            onPressed: () async {
+                              Navigator.pop(ctxConfirm); // cerrar confirmación
+                              
+                              final safeContext = contextOriginal;
+                              showDialog(
+                                context: safeContext,
+                                barrierDismissible: false,
+                                builder: (_) => const Center(child: CircularProgressIndicator()),
+                              );
 
-                      if (contextOriginal.mounted) {
-                        Navigator.of(contextOriginal, rootNavigator: true).pop(); // cerrar loading
-                        ScaffoldMessenger.of(contextOriginal).showSnackBar(
-                          const SnackBar(content: Text('Fondo de cambio registrado correctamente')),
-                        );
-                      }
-                    } catch (e) {
-                      if (contextOriginal.mounted) {
-                        Navigator.of(contextOriginal, rootNavigator: true).pop(); // cerrar loading
-                        ScaffoldMessenger.of(contextOriginal).showSnackBar(
-                          SnackBar(content: Text('Error: $e')),
-                        );
-                      }
-                    }
+                              try {
+                                await fireService.registrarGasto(
+                                  'Fondo de Cambio - ${selectedRepartidor.nombre}',
+                                  monto,
+                                  repartidorId: selectedRepartidor.id,
+                                  repartidorNombre: selectedRepartidor.nombre,
+                                  tipoGasto: 'Cambio',
+                                  esDeCaja: provieneDeCaja,
+                                );
+
+                                if (safeContext.mounted) {
+                                  Navigator.of(safeContext, rootNavigator: true).pop(); // cerrar loading
+                                  ScaffoldMessenger.of(safeContext).showSnackBar(
+                                    const SnackBar(content: Text('Fondo de cambio registrado correctamente')),
+                                  );
+                                }
+                              } catch (e) {
+                                if (safeContext.mounted) {
+                                  Navigator.of(safeContext, rootNavigator: true).pop(); // cerrar loading
+                                  ScaffoldMessenger.of(safeContext).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              }
+                            },
+                            child: const Text('Sí, Entregar', style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    );
                   },
                   child: const Text('Entregar Cambio', style: TextStyle(color: Colors.white)),
                 ),
@@ -645,21 +716,28 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
         totalRecibidoRepartidores += a.monto;
       } else {
         bool wasThroughDriver = false;
+        bool isTransfer = false;
         if (a.ticketId != null && a.ticketId!.isNotEmpty) {
           for (var t in tickets) {
-            if (t.id == a.ticketId && t.tipoEntrega == 'Domicilio') {
-              wasThroughDriver = true;
+            if (t.id == a.ticketId) {
+              if (t.tipoEntrega == 'Domicilio') {
+                wasThroughDriver = true;
+              }
+              if (t.metodoPago == 'Transferencia') {
+                isTransfer = true;
+              }
               break;
             }
           }
         }
-        if (!wasThroughDriver) {
+        if (!wasThroughDriver && !isTransfer) {
           totalRecibidoClientes += a.monto;
         }
       }
     }
     totalRecibido = totalRecibidoClientes + totalRecibidoRepartidores;
     double totalPendiente = totalClientesDeben + totalRepartidoresDeben;
+    final double dineroEnCaja = totalRecibido - totalGastos;
 
     // Prepare combined list of movimientos
     List<Map<String, dynamic>> movimientos = [];
@@ -773,7 +851,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                                 children: [
                                   Expanded(
                                     child: _buildActionButton(
-                                      onPressed: () => _mostrarDialogoRegistrarGasto(context),
+                                      onPressed: () => _mostrarDialogoRegistrarGasto(context, dineroEnCaja),
                                       icon: LucideIcons.arrowDownCircle,
                                       label: 'Registrar Salida',
                                       color: Colors.red.shade600,
@@ -782,7 +860,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: _buildActionButton(
-                                      onPressed: () => _mostrarDialogoEntregarCambio(context),
+                                      onPressed: () => _mostrarDialogoEntregarCambio(context, dineroEnCaja),
                                       icon: LucideIcons.coins,
                                       label: 'Entregar Cambio',
                                       color: Colors.purple.shade600,
@@ -847,14 +925,14 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                           Column(
                             children: [
                               _buildActionButton(
-                                onPressed: () => _mostrarDialogoRegistrarGasto(context),
+                                onPressed: () => _mostrarDialogoRegistrarGasto(context, dineroEnCaja),
                                 icon: LucideIcons.arrowDownCircle,
                                 label: 'Registrar Salida de Dinero (Gasto)',
                                 color: Colors.red.shade600,
                               ),
                               const SizedBox(height: 8),
                               _buildActionButton(
-                                onPressed: () => _mostrarDialogoEntregarCambio(context),
+                                onPressed: () => _mostrarDialogoEntregarCambio(context, dineroEnCaja),
                                 icon: LucideIcons.coins,
                                 label: 'Entregar Cambio a Repartidor',
                                 color: Colors.purple.shade600,

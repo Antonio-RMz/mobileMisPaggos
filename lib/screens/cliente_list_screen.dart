@@ -66,6 +66,15 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
                   Navigator.pop(ctx);
                 },
               ),
+              ListTile(
+                title: const Text('Clientes con Deuda (Deudores)'),
+                leading: const Icon(LucideIcons.arrowDownCircle, color: Colors.redAccent),
+                trailing: _filtroClientes == 'Deudores' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+                onTap: () {
+                  setState(() => _filtroClientes = 'Deudores');
+                  Navigator.pop(ctx);
+                },
+              ),
               const SizedBox(height: 16),
             ],
           ),
@@ -229,222 +238,223 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
         // Al quitar 'leading', Flutter automáticamente pondrá el botón del Drawer.
         title: Text(widget.isSelectingForOrder ? 'Selecciona un Cliente' : (Environment.isDev ? 'MisPaggosDev' : 'MisPaggos')),
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.isSelectingForOrder ? '¿Para quién es el pedido?' : 'Lista de Clientes',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textDark,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  widget.isSelectingForOrder 
-                      ? 'Selecciona el cliente para iniciar su carrito.'
-                      : 'Visualización de clientes registrados y\nsus datos de contacto.',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppTheme.textLight,
-                    height: 1.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
+      body: StreamBuilder<List<Cliente>>(
+        stream: Provider.of<FirebaseService>(context).getClientesStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary),
+            );
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Error al cargar la información.', style: Theme.of(context).textTheme.bodyLarge),
+            );
+          }
 
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                    ),
-                    child: TextField(
-                      onChanged: (val) {
-                        setState(() {
-                          _searchQuery = val.toLowerCase().trim();
-                        });
-                      },
-                      decoration: const InputDecoration(
-                        hintText: 'Buscar cliente...',
-                        hintStyle: TextStyle(fontSize: 14, color: AppTheme.textLight),
-                        prefixIcon: Icon(LucideIcons.search, size: 20, color: AppTheme.textLight),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 12),
-                        fillColor: Colors.transparent,
+          var clientes = snapshot.data ?? [];
+          final int countTotal = clientes.length;
+
+          if (_filtroClientes == 'Distinguidos') {
+            clientes = clientes.where((c) => c.isDistinguido).toList();
+          } else if (_filtroClientes == 'Deudores') {
+            clientes = clientes.where((c) => c.deudaTotal > 0).toList();
+          }
+
+          if (_searchQuery.isNotEmpty) {
+            final queryNorm = _removeAccents(_searchQuery);
+            clientes = clientes.where((c) {
+              final full = '${c.nombre} ${c.apPaterno} ${c.apMaterno}';
+              final nombreNorm = _removeAccents(full.toLowerCase());
+              return nombreNorm.contains(queryNorm) || c.celular.contains(_searchQuery);
+            }).toList();
+          }
+
+          final bool isWide = MediaQuery.of(context).size.width >= AppTheme.tabletBreakpoint;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.isSelectingForOrder ? '¿Para quién es el pedido?' : 'Lista de Clientes',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textDark,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  height: 44,
-                  width: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                  ),
-                  child: IconButton(
-                    icon: Icon(LucideIcons.filter, size: 20, color: _filtroClientes != 'Todos' ? AppTheme.primary : AppTheme.textLight),
-                    onPressed: () => _mostrarFiltro(context),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Lista
-          Expanded(
-            child: StreamBuilder<List<Cliente>>(
-              stream: _firebaseService.getClientesStream(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: AppTheme.primary),
-                  );
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error al cargar la información.', style: Theme.of(context).textTheme.bodyLarge),
-                  );
-                }
-
-                var clientes = snapshot.data ?? [];
-                
-                if (_filtroClientes == 'Distinguidos') {
-                  clientes = clientes.where((c) => c.isDistinguido).toList();
-                }
-
-                if (_searchQuery.isNotEmpty) {
-                  final queryNorm = _removeAccents(_searchQuery);
-                  clientes = clientes.where((c) {
-                    final full = '${c.nombre} ${c.apPaterno} ${c.apMaterno}';
-                    final nombreNorm = _removeAccents(full.toLowerCase());
-                    return nombreNorm.contains(queryNorm) || c.celular.contains(_searchQuery);
-                  }).toList();
-                }
-
-                final bool isWide = MediaQuery.of(context).size.width >= AppTheme.tabletBreakpoint;
-
-                if (isWide) {
-                  return GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 450,
-                      mainAxisExtent: 185,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.isSelectingForOrder 
+                          ? 'Selecciona el cliente para iniciar su carrito.'
+                          : 'Total: $countTotal clientes',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.textLight,
+                        height: 1.3,
+                      ),
                     ),
-                    itemCount: clientes.length + 1 + (widget.isSelectingForOrder ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == 0 && widget.isSelectingForOrder) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 0.0),
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(builder: (context) => const NuevoPedidoScreen()),
-                              );
-                            },
-                            icon: const Icon(Icons.storefront, color: Colors.white),
-                            label: const Text(
-                              'Público en General',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.accent,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 2,
-                            ),
-                          ),
-                        );
-                      }
-                      
-                      final actualIndex = widget.isSelectingForOrder ? index - 1 : index;
+                  ],
+                ),
+              ),
 
-                      if (actualIndex == clientes.length) {
-                        return _buildAddCard(context);
-                      }
-                      return _buildClienteCard(context, clientes[actualIndex], actualIndex);
-                    },
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  itemCount: clientes.length + 1 + (widget.isSelectingForOrder ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index == 0 && widget.isSelectingForOrder) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (context) => const NuevoPedidoScreen()),
-                            );
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                        ),
+                        child: TextField(
+                          onChanged: (val) {
+                            setState(() {
+                              _searchQuery = val.toLowerCase().trim();
+                            });
                           },
-                          icon: const Icon(Icons.storefront, color: Colors.white),
-                          label: const Text(
-                            'Público en General',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.accent,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 2,
+                          decoration: const InputDecoration(
+                            hintText: 'Buscar cliente...',
+                            hintStyle: TextStyle(fontSize: 14, color: AppTheme.textLight),
+                            prefixIcon: Icon(LucideIcons.search, size: 20, color: AppTheme.textLight),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(vertical: 12),
+                            fillColor: Colors.transparent,
                           ),
                         ),
-                      );
-                    }
-                    
-                    final actualIndex = widget.isSelectingForOrder ? index - 1 : index;
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      height: 44,
+                      width: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                      ),
+                      child: IconButton(
+                        icon: Icon(LucideIcons.filter, size: 20, color: _filtroClientes != 'Todos' ? AppTheme.primary : AppTheme.textLight),
+                        onPressed: () => _mostrarFiltro(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
-                    if (actualIndex == clientes.length) {
-                      return _buildAddCard(context);
-                    }
-                    return _buildClienteCard(context, clientes[actualIndex], actualIndex);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+              // Lista
+              Expanded(
+                child: isWide
+                    ? GridView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 450,
+                          mainAxisExtent: 185,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                        ),
+                        itemCount: clientes.length + 1 + (widget.isSelectingForOrder ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == 0 && widget.isSelectingForOrder) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 0.0),
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const NuevoPedidoScreen()),
+                                  );
+                                },
+                                icon: const Icon(Icons.storefront, color: Colors.white),
+                                label: const Text(
+                                  'Público en General',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.accent,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 2,
+                                ),
+                              ),
+                            );
+                          }
+                          
+                          final actualIndex = widget.isSelectingForOrder ? index - 1 : index;
+
+                          if (actualIndex == clientes.length) {
+                            return _buildAddCard(context);
+                          }
+                          return _buildClienteCard(context, clientes[actualIndex], actualIndex);
+                        },
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        itemCount: clientes.length + 1 + (widget.isSelectingForOrder ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == 0 && widget.isSelectingForOrder) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 16.0),
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const NuevoPedidoScreen()),
+                                  );
+                                },
+                                icon: const Icon(Icons.storefront, color: Colors.white),
+                                label: const Text(
+                                  'Público en General',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.accent,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 2,
+                                ),
+                              ),
+                            );
+                          }
+                          
+                          final actualIndex = widget.isSelectingForOrder ? index - 1 : index;
+
+                          if (actualIndex == clientes.length) {
+                            return _buildAddCard(context);
+                          }
+                          return _buildClienteCard(context, clientes[actualIndex], actualIndex);
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'fab_cliente',

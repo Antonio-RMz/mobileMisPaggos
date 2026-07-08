@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/environment.dart';
+import '../services/auth_service.dart';
+
 class UserProvider with ChangeNotifier {
   String _uid = '';
   String _empresaId = '';
@@ -23,8 +26,40 @@ class UserProvider with ChangeNotifier {
     _rol = prefs.getString('user_rol') ?? '';
     _nombre = prefs.getString('user_name') ?? 'STEWARD';
     _imagePath = prefs.getString('user_image_path') ?? '';
+
+    // En entorno de desarrollo (DEV), forzamos a usar el usuario con empresa vacía
+    // para asegurar la sincronía con el navegador y sobreescribir cualquier dato en caché.
+    if (Environment.isDev) {
+      _empresaId = '';
+      // Iniciamos sesión silenciosa en segundo plano para no bloquear la inicialización de la app
+      _iniciarSesionSilenciosaDev();
+    }
+
     _isInitialized = true;
     notifyListeners();
+  }
+
+  String _loginError = '';
+  String get loginError => _loginError;
+
+  void clearLoginError() {
+    _loginError = '';
+  }
+
+  Future<void> _iniciarSesionSilenciosaDev() async {
+    try {
+      _loginError = '';
+      final userData = await AuthService.login('toni00marco551@gmail.com', 'hola1234');
+      _uid = userData['uid'] ?? '';
+      _empresaId = userData['empresaId'] ?? '';
+      _rol = userData['rol'] ?? 'admin';
+      _nombre = userData['nombre'] ?? 'Antonio (Dev)';
+      notifyListeners();
+    } catch (e) {
+      _loginError = e.toString().replaceAll('Exception: ', '');
+      debugPrint("Error en auto-login silencioso de DEV: $e");
+      notifyListeners();
+    }
   }
 
   Future<void> updateUserData({

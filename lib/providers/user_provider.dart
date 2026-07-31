@@ -21,17 +21,22 @@ class UserProvider with ChangeNotifier {
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _uid = prefs.getString('user_uid') ?? '';
-    _empresaId = prefs.getString('user_empresa_id') ?? '';
-    _rol = prefs.getString('user_rol') ?? '';
-    _nombre = prefs.getString('user_name') ?? 'STEWARD';
+    
+    // Valores por defecto para el usuario de pruebas en DEV
+    final defaultUid = Environment.isDev ? 'xAT2Uz7qlkhZCMS5ycKKov' : '';
+    final defaultEmpresaId = Environment.isDev ? 'empresa_dev_1' : '';
+    final defaultRol = Environment.isDev ? 'admin' : '';
+    final defaultNombre = Environment.isDev ? 'Antonio (Dev)' : 'STEWARD';
+
+    _uid = prefs.getString('user_uid') ?? defaultUid;
+    _empresaId = prefs.getString('user_empresa_id') ?? defaultEmpresaId;
+    _rol = prefs.getString('user_rol') ?? defaultRol;
+    _nombre = prefs.getString('user_name') ?? defaultNombre;
     _imagePath = prefs.getString('user_image_path') ?? '';
 
-    // En entorno de desarrollo (DEV), forzamos a usar el usuario con empresa vacía
-    // para asegurar la sincronía con el navegador y sobreescribir cualquier dato en caché.
+    // En entorno de desarrollo (DEV), iniciamos sesión silenciosa en segundo plano
+    // para asegurar la sincronía, pero sin borrar los datos en caché para soportar el modo offline.
     if (Environment.isDev) {
-      _empresaId = '';
-      // Iniciamos sesión silenciosa en segundo plano para no bloquear la inicialización de la app
       _iniciarSesionSilenciosaDev();
     }
 
@@ -54,6 +59,14 @@ class UserProvider with ChangeNotifier {
       _empresaId = userData['empresaId'] ?? '';
       _rol = userData['rol'] ?? 'admin';
       _nombre = userData['nombre'] ?? 'Antonio (Dev)';
+      
+      // Persistir las credenciales del login silencioso para el inicio offline
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_uid', _uid);
+      await prefs.setString('user_empresa_id', _empresaId);
+      await prefs.setString('user_rol', _rol);
+      await prefs.setString('user_name', _nombre);
+      
       notifyListeners();
     } catch (e) {
       _loginError = e.toString().replaceAll('Exception: ', '');

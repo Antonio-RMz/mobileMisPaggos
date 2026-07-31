@@ -8,6 +8,7 @@ import 'providers/cart_provider.dart';
 import 'providers/dashboard_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/printer_provider.dart';
+import 'providers/notification_provider.dart';
 
 import 'services/firebase_service.dart';
 
@@ -27,6 +28,11 @@ class GestionClientesApp extends StatelessWidget {
           create: (_) => DashboardProvider(),
           update: (_, userProvider, dashboardProvider) => 
               dashboardProvider!..updateUserProvider(userProvider),
+        ),
+        ChangeNotifierProxyProvider<UserProvider, NotificationProvider>(
+          create: (_) => NotificationProvider(),
+          update: (_, userProvider, notificationProvider) => 
+              notificationProvider!..updateUserProvider(userProvider),
         ),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => PrinterProvider()),

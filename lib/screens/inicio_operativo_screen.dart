@@ -8,6 +8,7 @@ import '../providers/dashboard_provider.dart';
 import '../models/cliente_model.dart';
 import 'cliente_profile_screen.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/notification_bell.dart';
 import 'cliente_list_screen.dart';
 import 'ventas_list_screen.dart';
 
@@ -39,6 +40,9 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppTheme.textDark),
+        actions: const [
+          NotificationBell(),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -102,6 +106,7 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
                           count: dashboard.ventasHoyCount,
                           color: AppTheme.accent,
                           icon: LucideIcons.shoppingBag,
+                          filtroEstado: 'Todas',
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -112,7 +117,8 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
                           count: dashboard.entregasCanceladas,
                           color: Colors.redAccent,
                           icon: LucideIcons.xCircle,
-                          isClickable: false,
+                          isClickable: true,
+                          filtroEstado: 'Cancelado',
                         ),
                       ),
                     ],
@@ -125,6 +131,7 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
                         count: dashboard.ventasHoyCount,
                         color: AppTheme.accent,
                         icon: LucideIcons.shoppingBag,
+                        filtroEstado: 'Todas',
                       ),
                       _buildStatusCard(
                         context: context,
@@ -132,7 +139,8 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
                         count: dashboard.entregasCanceladas,
                         color: Colors.redAccent,
                         icon: LucideIcons.xCircle,
-                        isClickable: false,
+                        isClickable: true,
+                        filtroEstado: 'Cancelado',
                       ),
                     ],
                   ),
@@ -149,6 +157,7 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
     required Color color,
     required IconData icon,
     bool isClickable = true,
+    String filtroEstado = 'Todas',
   }) {
     final cardContent = Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -200,7 +209,7 @@ class _InicioOperativoScreenState extends State<InicioOperativoScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const VentasListScreen(filtroEstadoInicial: 'Todas'),
+              builder: (_) => VentasListScreen(filtroEstadoInicial: filtroEstado),
             ),
           ).then((_) {
             if (context.mounted) {

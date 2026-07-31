@@ -145,6 +145,7 @@ class DashboardProvider with ChangeNotifier {
 
       for (var doc in ticketsSnapshot.docs) {
         final ticket = Ticket.fromMap(doc.id, doc.data());
+        if (ticket.estadoEntrega == 'Programado') continue;
         
         // Determinar si el ticket es de la semana actual
         final bool esDeLaSemana = ticket.fecha != null && 
@@ -188,6 +189,8 @@ class DashboardProvider with ChangeNotifier {
           if (ticket.tipoEntrega == 'Domicilio') {
             if (ticket.estadoEntrega == 'Cancelado') {
               canceladas++;
+            } else if (ticket.estadoEntrega == 'Programado') {
+              // Excluir de reparto activo ya que aún no se le asigna repartidor ni se envía
             } else if (ticket.pagoRepartidorConfirmado) {
               enviadas++; // Ahora significa "Completadas"
             } else {

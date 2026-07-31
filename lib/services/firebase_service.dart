@@ -1053,6 +1053,8 @@ class FirebaseService {
     
     try {
       await batch.commit().timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      // Se encola localmente en cache para sincronización posterior
     } catch (e) {
       throw Exception('No se pudo procesar la entrega: $e');
     }
@@ -1106,7 +1108,9 @@ class FirebaseService {
     String? tipoGasto = 'General',
     bool esDeCaja = true,
   }) async {
+    final docRef = _gastosCollection.doc();
     final gasto = Gasto(
+      id: docRef.id,
       empresaId: empresaId,
       concepto: concepto,
       monto: monto,
@@ -1116,7 +1120,16 @@ class FirebaseService {
       tipoGasto: tipoGasto,
       esDeCaja: esDeCaja,
     );
-    await _gastosCollection.add(gasto.toMap());
+
+    try {
+      await docRef.set(gasto.toMap()).timeout(const Duration(seconds: 3));
+    } on TimeoutException {
+      // Se encola localmente en cache
+    } catch (e) {
+      if (!e.toString().contains('UNAVAILABLE')) {
+        print('Error en registrarGasto: $e');
+      }
+    }
   }
 
   Stream<List<Gasto>> getGastosByDateRange(DateTime start, DateTime end) {
@@ -1309,16 +1322,23 @@ class FirebaseService {
         .toList();
   }
 
-  /// Recalcula la deuda total real de un cliente y la actualiza en Firestore
   Future<void> recalcularDeudaCliente(String clienteId) async {
     if (clienteId.isEmpty || clienteId == 'GNR001') return;
 
     try {
       // 1. Obtener todos los tickets del cliente
-      final ticketsSnapshot = await _ticketsCollection
-          .where('empresaId', isEqualTo: empresaId)
-          .where('clienteId', isEqualTo: clienteId)
-          .get();
+      QuerySnapshot ticketsSnapshot;
+      try {
+        ticketsSnapshot = await _ticketsCollection
+            .where('empresaId', isEqualTo: empresaId)
+            .where('clienteId', isEqualTo: clienteId)
+            .get(const GetOptions(source: Source.serverAndCache));
+      } catch (_) {
+        ticketsSnapshot = await _ticketsCollection
+            .where('empresaId', isEqualTo: empresaId)
+            .where('clienteId', isEqualTo: clienteId)
+            .get(const GetOptions(source: Source.cache));
+      }
 
       final tickets = ticketsSnapshot.docs
           .map((d) => Ticket.fromMap(d.id, d.data() as Map<String, dynamic>))
@@ -1326,10 +1346,18 @@ class FirebaseService {
           .toList();
 
       // 2. Obtener todos los abonos del cliente
-      final abonosSnapshot = await _abonosCollection
-          .where('empresaId', isEqualTo: empresaId)
-          .where('clienteId', isEqualTo: clienteId)
-          .get();
+      QuerySnapshot abonosSnapshot;
+      try {
+        abonosSnapshot = await _abonosCollection
+            .where('empresaId', isEqualTo: empresaId)
+            .where('clienteId', isEqualTo: clienteId)
+            .get(const GetOptions(source: Source.serverAndCache));
+      } catch (_) {
+        abonosSnapshot = await _abonosCollection
+            .where('empresaId', isEqualTo: empresaId)
+            .where('clienteId', isEqualTo: clienteId)
+            .get(const GetOptions(source: Source.cache));
+      }
 
       final abonos = abonosSnapshot.docs
           .map((d) => Abono.fromMap(d.id, d.data() as Map<String, dynamic>))
@@ -1364,9 +1392,75 @@ class FirebaseService {
       await _clientesCollection.doc(clienteId).update({
         'deuda_total': deudaReal,
         'updateAt': Timestamp.now(),
-      });
+      }).timeout(const Duration(seconds: 3));
     } catch (e) {
-      print('Error en recalcularDeudaCliente: $e');
+      if (e is! TimeoutException) {
+        print('Error en recalcularDeudaCliente: $e');
+      }
+    }
+  }
+
+  /// Obtiene los tickets programados activos para la empresa
+  Stream<List<Ticket>> getScheduledTicketsStream() {
+    return _ticketsCollection
+        .where('empresaId', isEqualTo: empresaId)
+        .where('esProgramado', isEqualTo: true)
+        .snapshots(includeMetadataChanges: true)
+        .map((snapshot) {
+      final now = DateTime.now();
+      final threeDaysAgo = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 3));
+      
+      final list = snapshot.docs.map((doc) {
+        return Ticket.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+      }).where((t) {
+        if (t.estadoEntrega == 'Programado') return true;
+        if (t.fechaEntregaProgramada != null) {
+          return t.fechaEntregaProgramada!.toDate().isAfter(threeDaysAgo);
+        }
+        return false;
+      }).toList();
+
+      // Ordenar por fecha de entrega programada ascendente (los que vencen antes van primero)
+      list.sort((a, b) {
+        final tA = a.fechaEntregaProgramada ?? a.fecha ?? Timestamp.now();
+        final tB = b.fechaEntregaProgramada ?? b.fecha ?? Timestamp.now();
+        return tA.compareTo(tB);
+      });
+      return list;
+    });
+  }
+
+  /// Despacha un ticket programado asignándole un repartidor y activando su entrega
+  Future<void> despacharTicketProgramado(
+    String ticketId,
+    String repartidorId,
+    String repartidorNombre, {
+    required String formaVenta,
+    required double totalAbonado,
+    required double saldoRestante,
+    required String estado,
+  }) async {
+    final ticketRef = _ticketsCollection.doc(ticketId);
+
+    try {
+      await ticketRef.update({
+        'repartidorId': repartidorId,
+        'repartidorNombre': repartidorNombre,
+        'estadoEntrega': 'Entregado', // Cambia inmediatamente a Entregado al confirmar el envío
+        'tipoEntrega': 'Domicilio',
+        'formaVenta': formaVenta,
+        'totalAbonado': totalAbonado,
+        'saldoRestante': saldoRestante,
+        'estado': estado,
+        'fecha': Timestamp.now(),
+        'updateAt': Timestamp.now(),
+      }).timeout(const Duration(seconds: 3));
+    } on TimeoutException {
+      // Si hay timeout, Firestore guardó localmente en caché y sincronizará en segundo plano.
+      // Permitimos que la UI continúe en lugar de quedarse congelada.
+    } catch (e) {
+      print('Error al despachar ticket programado: $e');
+      rethrow;
     }
   }
 }

@@ -9,6 +9,7 @@ class TicketItem {
   String observaciones;
   String unidadVenta;
   String seccion;
+  bool esChicharron;
 
   TicketItem({
     required this.productoId,
@@ -19,6 +20,7 @@ class TicketItem {
     this.observaciones = '',
     this.unidadVenta = '',
     this.seccion = 'general',
+    this.esChicharron = false,
   });
 
   double get subtotal => cantidad * precioUnitario;
@@ -60,6 +62,7 @@ class TicketItem {
       'observaciones': observaciones,
       'unidadVenta': unidadVenta,
       'seccion': seccion,
+      'esChicharron': esChicharron,
       'subtotal': subtotal,
     };
   }
@@ -74,6 +77,7 @@ class TicketItem {
       observaciones: map['observaciones'] ?? '',
       unidadVenta: map['unidadVenta'] ?? '',
       seccion: map['seccion'] ?? 'general',
+      esChicharron: map['esChicharron'] ?? false,
     );
   }
 }
@@ -94,13 +98,17 @@ class Ticket {
   String tipoEntrega; // 'Local', 'Domicilio'
   String? repartidorId;
   String? repartidorNombre;
-  String estadoEntrega; // 'Entregado', 'Pendiente', 'Cancelado'
+  String estadoEntrega; // 'Entregado', 'Pendiente', 'Cancelado', 'Programado'
   String? motivoCancelacion;
   bool pagoRepartidorConfirmado;
   String metodoPago; // 'Efectivo', 'Transferencia'
   String? cobradoPor; // Quien recibió el dinero
   bool deudaManualAsignada; // Indica si la deuda ya fue transferida manualmente al cliente
   String formaVenta; // 'Contado', 'Crédito'
+
+  // Campos para pedidos programados
+  bool esProgramado;
+  Timestamp? fechaEntregaProgramada;
 
   String createBy;
   Timestamp? createAt;
@@ -128,6 +136,8 @@ class Ticket {
     this.cobradoPor,
     this.deudaManualAsignada = false,
     this.formaVenta = 'Contado',
+    this.esProgramado = false,
+    this.fechaEntregaProgramada,
     this.createBy = 'Sistema',
     this.createAt,
     this.updateBy = 'Sistema',
@@ -166,6 +176,8 @@ class Ticket {
       cobradoPor: data['cobradoPor'],
       deudaManualAsignada: data['deudaManualAsignada'] ?? false,
       formaVenta: data['formaVenta'] ?? ( (data['estado'] == 'Con Deuda') ? 'Crédito' : 'Contado' ),
+      esProgramado: data['esProgramado'] ?? false,
+      fechaEntregaProgramada: data['fechaEntregaProgramada'],
       createBy: data['createBy'] ?? '',
       createAt: data['createAt'],
       updateBy: data['updateBy'] ?? '',
@@ -195,6 +207,8 @@ class Ticket {
       'cobradoPor': cobradoPor,
       'deudaManualAsignada': deudaManualAsignada,
       'formaVenta': formaVenta,
+      'esProgramado': esProgramado,
+      'fechaEntregaProgramada': fechaEntregaProgramada,
       'createBy': createBy,
       'createAt': createAt,
       'updateBy': updateBy,

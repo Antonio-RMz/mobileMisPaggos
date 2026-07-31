@@ -303,12 +303,17 @@ class _CatalogoViewState extends State<CatalogoView> {
   }
 
   Widget _buildProductoCard(BuildContext context, Producto producto) {
+    final bool isChicharronItem = producto.esChicharron || producto.nombre.toLowerCase().contains('chicharron') || producto.nombre.toLowerCase().contains('chicharrón');
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
+      color: isChicharronItem ? Colors.orange.shade50.withOpacity(0.35) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.withOpacity(0.15)),
+        side: BorderSide(
+          color: isChicharronItem ? Colors.orange.withOpacity(0.35) : Colors.grey.withOpacity(0.15),
+          width: isChicharronItem ? 1.5 : 1.0,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -318,10 +323,14 @@ class _CatalogoViewState extends State<CatalogoView> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppTheme.cardHighlight,
+                color: isChicharronItem ? Colors.orange.withOpacity(0.12) : AppTheme.cardHighlight,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.inventory_2, color: AppTheme.accent, size: 24),
+              child: Icon(
+                isChicharronItem ? Icons.local_fire_department : Icons.inventory_2,
+                color: isChicharronItem ? Colors.orange.shade800 : AppTheme.accent,
+                size: 24,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(

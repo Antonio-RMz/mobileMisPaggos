@@ -6,6 +6,7 @@ import '../models/cliente_model.dart';
 import '../services/firebase_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/notification_bell.dart';
 import 'cliente_form_modal.dart';
 import 'nuevo_pedido_screen.dart';
 import 'cliente_profile_screen.dart';
@@ -24,6 +25,20 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
   FirebaseService get _firebaseService => Provider.of<FirebaseService>(context, listen: false);
   String _searchQuery = '';
   String _filtroClientes = 'Todos'; // 'Todos' o 'Distinguidos'
+  late Stream<List<Cliente>> _clientesStream;
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _clientesStream = Provider.of<FirebaseService>(context, listen: false).getClientesStream();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   String _removeAccents(String str) {
     var withDia = 'áéíóúÁÉÍÓÚñÑ';
@@ -237,9 +252,12 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
       appBar: AppBar(
         // Al quitar 'leading', Flutter automáticamente pondrá el botón del Drawer.
         title: Text(widget.isSelectingForOrder ? 'Selecciona un Cliente' : (Environment.isDev ? 'MisPaggosDev' : 'MisPaggos')),
+        actions: const [
+          NotificationBell(),
+        ],
       ),
       body: StreamBuilder<List<Cliente>>(
-        stream: Provider.of<FirebaseService>(context).getClientesStream(),
+        stream: _clientesStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -318,6 +336,7 @@ class _ClienteListScreenState extends State<ClienteListScreen> {
                           border: Border.all(color: Colors.grey.withOpacity(0.3)),
                         ),
                         child: TextField(
+                          controller: _searchCtrl,
                           onChanged: (val) {
                             setState(() {
                               _searchQuery = val.toLowerCase().trim();

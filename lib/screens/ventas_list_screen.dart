@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../models/ticket_model.dart';
+import '../models/gasto_model.dart';
+import '../models/abono_model.dart';
 import '../theme/app_theme.dart';
 import '../providers/printer_provider.dart';
 import '../utils/string_utils.dart';
@@ -27,6 +29,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
   String _searchQuery = '';
   
   String _filtroRepartidor = 'Todos';
+  String _filtroEstado = 'Todas';
 
   DateTime _fechaInicio = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
   DateTime _fechaFin = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59);
@@ -34,6 +37,9 @@ class _VentasListScreenState extends State<VentasListScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.filtroEstadoInicial != null) {
+      _filtroEstado = widget.filtroEstadoInicial!;
+    }
   }
 
   Future<void> _seleccionarRango(BuildContext context) async {
@@ -79,6 +85,7 @@ class _VentasListScreenState extends State<VentasListScreen> {
         if (f.isBefore(_fechaInicio) || f.isAfter(_fechaFin)) return false;
         
         if (_filtroRepartidor != 'Todos' && (t.repartidorNombre ?? '') != _filtroRepartidor) return false;
+        if (_filtroEstado != 'Todas' && t.estadoEntrega != _filtroEstado) return false;
         
         return true;
       }).toList();
@@ -182,6 +189,8 @@ class _VentasListScreenState extends State<VentasListScreen> {
                                 child: Row(
                                   children: [
                                     _buildBotonFiltroRepartidor(),
+                                    const SizedBox(width: 8),
+                                    _buildBotonFiltroEstado(),
                                   ],
                                 ),
                               ),
@@ -258,16 +267,57 @@ class _VentasListScreenState extends State<VentasListScreen> {
                             ),
                             const SizedBox(width: 8),
                             _buildSeccionBadge(t),
+                            if (t.estadoEntrega == 'Entregado') ...[
+                               const SizedBox(width: 8),
+                               Container(
+                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                 decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4)),
+                                 child: const Text('Entregado', style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                               )
+                            ],
+                            if (t.estadoEntrega == 'Pendiente') ...[
+                               const SizedBox(width: 8),
+                               Container(
+                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                 decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                                 child: const Text('En Reparto', style: TextStyle(color: Colors.blue, fontSize: 11, fontWeight: FontWeight.bold)),
+                               )
+                            ],
                             if (t.estadoEntrega == 'Cancelado') ...[
                                const SizedBox(width: 8),
                                Container(
                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                 decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
+                                 decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(4)),
                                  child: const Text('Cancelado', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
+                               )
+                            ],
+                            if (t.estadoEntrega == 'Programado') ...[
+                               const SizedBox(width: 8),
+                               Container(
+                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                 decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4)),
+                                 child: Text(
+                                   t.fechaEntregaProgramada != null 
+                                       ? 'Programado: ${DateFormat('dd MMM, hh:mm a').format(t.fechaEntregaProgramada!.toDate())}' 
+                                       : 'Programado', 
+                                   style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.bold),
+                                 ),
                                )
                             ]
                           ],
                         ),
+                        if (t.estadoEntrega == 'Cancelado' && t.motivoCancelacion?.isNotEmpty == true) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Motivo: ${t.motivoCancelacion}',
+                            style: TextStyle(
+                              color: Colors.red.shade800,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -359,6 +409,19 @@ class _VentasListScreenState extends State<VentasListScreen> {
                 if (ticket.tipoEntrega == 'Domicilio' && ticket.repartidorNombre != null) ...[
                   const SizedBox(height: 4),
                   Text('Repartidor: ${ticket.repartidorNombre}', style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+                ],
+                if (ticket.estadoEntrega == 'Programado' && ticket.fechaEntregaProgramada != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.calendarClock, size: 16, color: Colors.orange),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Entrega Programada: ${DateFormat('dd MMM yyyy, hh:mm a').format(ticket.fechaEntregaProgramada!.toDate())}',
+                        style: const TextStyle(fontSize: 14, color: Colors.orange, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                 ],
                 if (ticket.estadoEntrega == 'Cancelado' && ticket.motivoCancelacion?.isNotEmpty == true) ...[
                   const SizedBox(height: 8),
@@ -757,6 +820,62 @@ class _VentasListScreenState extends State<VentasListScreen> {
     );
   }
 
+  Widget _buildBotonFiltroEstado() {
+    return InkWell(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: (ctx) {
+            final estados = {
+              'Todas': 'Todos los estados',
+              'Entregado': 'Entregados',
+              'Pendiente': 'En Reparto / Pendiente',
+              'Cancelado': 'Cancelados',
+              'Programado': 'Programados',
+            };
+            
+            return ListView(
+              shrinkWrap: true,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('Filtrar por Estado', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+                ...estados.entries.map((e) => ListTile(
+                  title: Text(e.value),
+                  trailing: _filtroEstado == e.key ? const Icon(Icons.check, color: AppTheme.primary) : null,
+                  onTap: () {
+                    setState(() => _filtroEstado = e.key);
+                    Navigator.pop(ctx);
+                  },
+                )),
+              ],
+            );
+          }
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: _filtroEstado != 'Todas' ? AppTheme.primary.withOpacity(0.1) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _filtroEstado != 'Todas' ? AppTheme.primary.withOpacity(0.5) : Colors.transparent),
+        ),
+        child: Row(
+          children: [
+            Icon(LucideIcons.filter, size: 16, color: _filtroEstado != 'Todas' ? AppTheme.primary : AppTheme.textDark),
+            const SizedBox(width: 8),
+            Text(
+              _filtroEstado == 'Todas' ? 'Estado' : _filtroEstado,
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _filtroEstado != 'Todas' ? AppTheme.primary : AppTheme.textDark),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomFloatingWidget(List<Ticket> tickets) {
     double totalVentas = 0;
     double totalAbonado = 0;
@@ -764,28 +883,99 @@ class _VentasListScreenState extends State<VentasListScreen> {
     
     List<String> ticketIds = [];
     
+    bool hasRepartidor = _filtroRepartidor != 'Todos';
+
     for (var t in tickets) {
       if (t.estadoEntrega != 'Cancelado') {
         totalVentas += t.totalVenta;
         totalAbonado += t.totalAbonado;
-        if (!t.pagoRepartidorConfirmado) {
-          if (t.formaVenta == 'Crédito') {
-            if (t.totalAbonado > 0) {
-              totalPendiente += t.totalAbonado;
-              ticketIds.add(t.id);
+        if (hasRepartidor) {
+          if (t.metodoPago == 'Efectivo') {
+            if (t.formaVenta == 'Contado') {
+              totalPendiente += t.totalVenta;
+            } else {
+              if (t.totalAbonado > 0) {
+                totalPendiente += t.totalAbonado;
+              }
             }
-          } else {
-            if (t.saldoRestante > 0) {
-              totalPendiente += t.saldoRestante;
-              ticketIds.add(t.id);
+          }
+          if (!t.pagoRepartidorConfirmado) {
+            ticketIds.add(t.id);
+          }
+        } else {
+          if (!t.pagoRepartidorConfirmado) {
+            if (t.formaVenta == 'Crédito') {
+              if (t.totalAbonado > 0) {
+                totalPendiente += t.totalAbonado;
+                ticketIds.add(t.id);
+              }
+            } else {
+              if (t.saldoRestante > 0) {
+                totalPendiente += t.saldoRestante;
+                ticketIds.add(t.id);
+              }
             }
           }
         }
       }
     }
 
-    bool hasRepartidor = _filtroRepartidor != 'Todos';
+    if (hasRepartidor) {
+      final firebaseService = Provider.of<FirebaseService>(context, listen: false);
+      return StreamBuilder<List<Gasto>>(
+        stream: firebaseService.getGastosByDateRange(_fechaInicio, _fechaFin),
+        builder: (context, gastosSnapshot) {
+          final listGastos = gastosSnapshot.data ?? [];
+          double totalCambioDado = 0;
+          for (var g in listGastos) {
+            if (g.tipoGasto == 'Cambio' && g.repartidorNombre?.trim().toLowerCase() == _filtroRepartidor.trim().toLowerCase()) {
+              totalCambioDado += g.monto;
+            }
+          }
 
+          return StreamBuilder<List<Abono>>(
+            stream: firebaseService.getAbonosByRepartidor(_filtroRepartidor, _fechaInicio, _fechaFin),
+            builder: (context, abonosSnapshot) {
+              final listAbonos = abonosSnapshot.data ?? [];
+              double totalEntregado = 0;
+              for (var a in listAbonos) {
+                if ((a.ticketId == 'ENTREGA_REPARTIDOR' || a.ticketId == 'ENTREGA_GENERAL') && a.repartidorId == _filtroRepartidor) {
+                  totalEntregado += a.monto;
+                }
+              }
+
+              double finalPendiente = totalPendiente + totalCambioDado - totalEntregado;
+              if (finalPendiente < 0) finalPendiente = 0.0;
+
+              return _buildBottomUI(
+                totalVentas: totalVentas,
+                totalAbonado: totalAbonado,
+                totalPendiente: finalPendiente,
+                hasRepartidor: true,
+                ticketIds: ticketIds,
+              );
+            },
+          );
+        },
+      );
+    } else {
+      return _buildBottomUI(
+        totalVentas: totalVentas,
+        totalAbonado: totalAbonado,
+        totalPendiente: totalPendiente,
+        hasRepartidor: false,
+        ticketIds: ticketIds,
+      );
+    }
+  }
+
+  Widget _buildBottomUI({
+    required double totalVentas,
+    required double totalAbonado,
+    required double totalPendiente,
+    required bool hasRepartidor,
+    required List<String> ticketIds,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -900,43 +1090,53 @@ class _VentasListScreenState extends State<VentasListScreen> {
                   // Confirmacion
                   showDialog(
                     context: contextOriginal,
-                    builder: (ctxConfirm) => AlertDialog(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      title: const Text('Confirmar Abono', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
-                      content: Text('¿Confirmas un abono de ${currencyFormat.format(monto)} por parte de $repartidorNombre?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctxConfirm),
-                          child: const Text('No, corregir', style: TextStyle(color: Colors.redAccent)),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-                          onPressed: () async {
-                            Navigator.pop(ctxConfirm);
-                            
-                            final safeContext = this.context;
-                            if (!safeContext.mounted) return;
-                            
-                            showDialog(context: safeContext, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-                            
-                            try {
-                              final firebaseService = Provider.of<FirebaseService>(safeContext, listen: false);
-                              await firebaseService.registrarAbonoRepartidor(repartidorNombre, monto, ticketIdsToPay: ticketIds);
-                              if (safeContext.mounted) {
-                                Navigator.pop(safeContext); // cerrar loading
-                                OverlayHelper.showSuccess(safeContext, message: 'Abono registrado exitosamente');
-                              }
-                            } catch (e) {
-                              if (safeContext.mounted) {
-                                Navigator.pop(safeContext); // cerrar loading
-                                OverlayHelper.showError(safeContext, message: 'Error: $e');
-                              }
-                            }
-                          },
-                          child: const Text('Sí, Confirmar', style: TextStyle(color: Colors.white)),
-                        ),
-                      ],
-                    ),
+                    builder: (ctxConfirm) {
+                      bool isSubmitting = false;
+                      return StatefulBuilder(
+                        builder: (context, setState) {
+                          return AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: const Text('Confirmar Abono', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                            content: Text('¿Confirmas un abono de ${currencyFormat.format(monto)} por parte de $repartidorNombre?'),
+                            actions: [
+                              TextButton(
+                                onPressed: isSubmitting ? null : () => Navigator.pop(ctxConfirm),
+                                child: const Text('No, corregir', style: TextStyle(color: Colors.redAccent)),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                                onPressed: isSubmitting ? null : () async {
+                                  setState(() {
+                                    isSubmitting = true;
+                                  });
+                                  Navigator.pop(ctxConfirm);
+                                  
+                                  final safeContext = this.context;
+                                  if (!safeContext.mounted) return;
+                                  
+                                  showDialog(context: safeContext, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                                  
+                                  try {
+                                    final firebaseService = Provider.of<FirebaseService>(safeContext, listen: false);
+                                    await firebaseService.registrarAbonoRepartidor(repartidorNombre, monto, ticketIdsToPay: ticketIds);
+                                    if (safeContext.mounted) {
+                                      Navigator.pop(safeContext); // cerrar loading
+                                      OverlayHelper.showSuccess(safeContext, message: 'Abono registrado exitosamente');
+                                    }
+                                  } catch (e) {
+                                    if (safeContext.mounted) {
+                                      Navigator.pop(safeContext); // cerrar loading
+                                      OverlayHelper.showError(safeContext, message: 'Error: $e');
+                                    }
+                                  }
+                                },
+                                child: const Text('Sí, Confirmar', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
                   );
                 }
               },

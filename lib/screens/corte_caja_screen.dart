@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import '../services/pdf_report_service.dart';
 import '../models/ticket_model.dart';
@@ -10,6 +11,7 @@ import '../models/gasto_model.dart';
 import '../models/personal_model.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/notification_bell.dart';
 import '../utils/overlay_helper.dart';
 import 'dashboard_screen.dart';
 
@@ -29,6 +31,48 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
   DateTime _endDate = DateTime.now();
   bool _isUnlocked = false;
   final TextEditingController _pinCtrl = TextEditingController();
+  final Map<String, String> _clienteNamesCache = {};
+
+  void _loadMissingClientNames(List<Abono> abonos) {
+    final missingIds = abonos
+        .map((a) => a.clienteId)
+        .where((id) => id.isNotEmpty && !_clienteNamesCache.containsKey(id))
+        .toSet();
+
+    if (missingIds.isEmpty) return;
+
+    // Add them to cache with a fallback value (to avoid duplicate queries)
+    for (var id in missingIds) {
+      _clienteNamesCache[id] = id; 
+    }
+
+    // Load asynchronously
+    Future.microtask(() async {
+      for (var id in missingIds) {
+        try {
+          final doc = await FirebaseFirestore.instance.collection('clientes').doc(id).get();
+          if (doc.exists) {
+            final data = doc.data();
+            if (data != null) {
+              final String name = data['nombre'] ?? '';
+              final String app = data['appaterno'] ?? '';
+              final String apm = data['apmaterno'] ?? '';
+              final fullName = '$name $app $apm'.trim();
+              if (fullName.isNotEmpty) {
+                if (mounted) {
+                  setState(() {
+                    _clienteNamesCache[id] = fullName;
+                  });
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -159,6 +203,9 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
           backgroundColor: Colors.white,
           elevation: 0,
           iconTheme: const IconThemeData(color: AppTheme.textDark),
+          actions: const [
+            NotificationBell(),
+          ],
           bottom: const TabBar(
             labelColor: AppTheme.primary,
             unselectedLabelColor: Colors.grey,
@@ -186,6 +233,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
 
                     final tickets = ticketsSnapshot.data ?? [];
                     final abonos = abonosSnapshot.data ?? [];
+                    _loadMissingClientNames(abonos);
                     final gastos = gastosSnapshot.data ?? [];
 
                     return Column(
@@ -624,42 +672,52 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                   // Abre confirmación secundaria que el usuario pidió
                   showDialog(
                     context: contextOriginal,
-                    builder: (ctxConfirm) => AlertDialog(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      title: const Text('Confirmar Abono', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
-                      content: Text('¿Deseas confirmar un abono de ${_currencyFormat.format(monto)} del repartidor $repartidorNombre de la cuenta total de ${_currencyFormat.format(totalDeuda)}?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctxConfirm),
-                          child: const Text('No, corregir', style: TextStyle(color: Colors.redAccent)),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-                          onPressed: () async {
-                            Navigator.pop(ctxConfirm); // cierra confirmacion
-                            
-                            final safeContext = this.context;
-                            if (!safeContext.mounted) return;
-                            
-                            showDialog(context: safeContext, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-                            
-                            try {
-                              await _firebaseService.registrarAbonoRepartidor(repartidorNombre, monto, ticketIdsToPay: ticketIds);
-                              if (safeContext.mounted) {
-                                Navigator.pop(safeContext); // cerrar loading
-                                OverlayHelper.showSuccess(safeContext, message: 'Entrega registrada exitosamente');
-                              }
-                            } catch (e) {
-                              if (safeContext.mounted) {
-                                Navigator.pop(safeContext); // cerrar loading
-                                OverlayHelper.showError(safeContext, message: 'Error: $e');
-                              }
-                            }
-                          },
-                          child: const Text('Sí, Confirmar Abono', style: TextStyle(color: Colors.white)),
-                        ),
-                      ],
-                    ),
+                    builder: (ctxConfirm) {
+                      bool isSubmitting = false;
+                      return StatefulBuilder(
+                        builder: (context, setState) {
+                          return AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: const Text('Confirmar Abono', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                            content: Text('¿Deseas confirmar un abono de ${_currencyFormat.format(monto)} del repartidor $repartidorNombre de la cuenta total de ${_currencyFormat.format(totalDeuda)}?'),
+                            actions: [
+                              TextButton(
+                                onPressed: isSubmitting ? null : () => Navigator.pop(ctxConfirm),
+                                child: const Text('No, corregir', style: TextStyle(color: Colors.redAccent)),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                                onPressed: isSubmitting ? null : () async {
+                                  setState(() {
+                                    isSubmitting = true;
+                                  });
+                                  Navigator.pop(ctxConfirm); // cierra confirmacion
+                                  
+                                  final safeContext = this.context;
+                                  if (!safeContext.mounted) return;
+                                  
+                                  showDialog(context: safeContext, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+                                  
+                                  try {
+                                    await _firebaseService.registrarAbonoRepartidor(repartidorNombre, monto, ticketIdsToPay: ticketIds);
+                                    if (safeContext.mounted) {
+                                      Navigator.pop(safeContext); // cerrar loading
+                                      OverlayHelper.showSuccess(safeContext, message: 'Entrega registrada exitosamente');
+                                    }
+                                  } catch (e) {
+                                    if (safeContext.mounted) {
+                                      Navigator.pop(safeContext); // cerrar loading
+                                      OverlayHelper.showError(safeContext, message: 'Error: $e');
+                                    }
+                                  }
+                                },
+                                child: const Text('Sí, Confirmar Abono', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
                   );
                 }
               },
@@ -672,6 +730,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
   }
 
   Widget _buildCorteGeneralTab(List<Ticket> tickets, List<Abono> abonos, List<Gasto> gastos) {
+    abonos = abonos.where((a) => a.ticketId != 'ENTREGA_GENERAL').toList();
     final Map<String, String> localClienteNames = {};
     for (var t in tickets) {
       if (t.clienteId.isNotEmpty && t.clienteNombre.isNotEmpty) {
@@ -686,7 +745,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
     double totalRecibido = 0;
 
     for (var t in tickets) {
-      if (t.estadoEntrega != 'Cancelado') {
+      if (t.estadoEntrega != 'Cancelado' && t.estadoEntrega != 'Programado') {
         totalVendido += t.totalVenta;
         
         if (t.estado == 'Con Deuda' || t.formaVenta == 'Crédito') {
@@ -743,6 +802,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
     List<Map<String, dynamic>> movimientos = [];
     
     for (var t in tickets) {
+      if (t.estadoEntrega == 'Programado') continue;
       movimientos.add({
         'fecha': t.fecha?.toDate() ?? DateTime.now(),
         'tipo': 'Venta',
@@ -757,6 +817,22 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
     for (var a in abonos) {
       final isRepartidor = a.ticketId == 'ENTREGA_REPARTIDOR' || a.ticketId == 'ENTREGA_GENERAL';
       
+      // Skip client abonos collected in cash by a driver, because they are already accounted for in the ENTREGA_REPARTIDOR bulk abono
+      if (a.repartidorId != null && a.repartidorId!.isNotEmpty && !isRepartidor) {
+        String metodo = 'Efectivo';
+        if (a.ticketId != null && a.ticketId!.isNotEmpty) {
+          for (var t in tickets) {
+            if (t.id == a.ticketId) {
+              metodo = t.metodoPago;
+              break;
+            }
+          }
+        }
+        if (metodo == 'Efectivo') {
+          continue;
+        }
+      }
+
       // Skip the abono document if it corresponds to a Contado counter sale (since it's already shown in the Venta row)
       bool isContadoAbono = false;
       if (a.ticketId != null && a.ticketId!.isNotEmpty) {
@@ -776,7 +852,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
             ? 'Entrega de Repartidor - ${a.repartidorId ?? a.createBy}' 
             : 'Entrega General - ${a.repartidorId ?? a.createBy}';
       } else {
-        final String resolvedName = localClienteNames[a.clienteId] ?? a.clienteId;
+        final String resolvedName = localClienteNames[a.clienteId] ?? _clienteNamesCache[a.clienteId] ?? a.clienteId;
         abonoName = resolvedName.isNotEmpty ? 'Abono a Deuda - $resolvedName' : 'Abono a Deuda';
       }
       
@@ -917,6 +993,22 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                                       color: Colors.black,
                                     ),
                                   ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      onPressed: () {
+                                        PdfReportService.generateReportePedidosProgramadosPdf(
+                                          context,
+                                          _startDate,
+                                          _endDate,
+                                          _filtro,
+                                        );
+                                      },
+                                      icon: LucideIcons.calendarClock,
+                                      label: 'Pedidos Programados',
+                                      color: Colors.blue.shade700,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -984,6 +1076,22 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                                       color: Colors.black,
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      onPressed: () {
+                                        PdfReportService.generateReportePedidosProgramadosPdf(
+                                          context,
+                                          _startDate,
+                                          _endDate,
+                                          _filtro,
+                                        );
+                                      },
+                                      icon: LucideIcons.calendarClock,
+                                      label: 'Prog. PDF',
+                                      color: Colors.blue.shade700,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -1017,7 +1125,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                               Expanded(
                                 child: _buildStatItem(
                                   label: 'Dinero en Caja',
-                                  amount: totalRecibido,
+                                  amount: dineroEnCaja,
                                   color: Colors.green.shade700,
                                 ),
                               ),
@@ -1162,12 +1270,14 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
   }
 
   Widget _buildCorteRepartidorTab(List<Ticket> tickets, List<Abono> abonos, List<Gasto> gastos) {
+    abonos = abonos.where((a) => a.ticketId != 'ENTREGA_GENERAL').toList();
     Map<String, List<Ticket>> ticketsPorRepartidor = {};
     
     // Agrupar repartidores de abonos también (por si un repartidor no tuvo ventas hoy pero sí cobró un abono)
     Set<String> repartidoresNombres = {};
 
     for (var t in tickets) {
+      if (t.estadoEntrega == 'Programado') continue;
       if (t.tipoEntrega == 'Domicilio' && t.repartidorNombre != null && t.repartidorNombre!.isNotEmpty) {
         repartidoresNombres.add(t.repartidorNombre!);
       }
@@ -1177,10 +1287,15 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
           repartidoresNombres.add(a.repartidorId!);
        }
     }
+    for (var g in gastos) {
+      if (g.tipoGasto == 'Cambio' && g.repartidorNombre != null && g.repartidorNombre!.isNotEmpty) {
+        repartidoresNombres.add(g.repartidorNombre!);
+      }
+    }
 
     for (var r in repartidoresNombres) {
        if (r.length == 20 && !r.contains(' ')) continue; // Omitir IDs fantasma
-       ticketsPorRepartidor[r] = tickets.where((t) => t.tipoEntrega == 'Domicilio' && t.repartidorNombre == r).toList();
+       ticketsPorRepartidor[r] = tickets.where((t) => t.estadoEntrega != 'Programado' && t.tipoEntrega == 'Domicilio' && t.repartidorNombre == r).toList();
     }
 
     var repartidores = ticketsPorRepartidor.keys.toList()..sort();
@@ -1275,7 +1390,7 @@ class _CorteCajaScreenState extends State<CorteCajaScreen> {
                             iconSize: 24,
                             icon: const Icon(LucideIcons.printer, color: AppTheme.primary),
                             onPressed: () {
-                              PdfReportService.generateCorteRepartidorPdf(context, repartidor, ticketsRep, abonos, gastos, _filtro);
+                              PdfReportService.generateCorteRepartidorPdf(context, repartidor, ticketsRep, tickets, abonos, gastos, _filtro);
                             },
                           ),
                         ],

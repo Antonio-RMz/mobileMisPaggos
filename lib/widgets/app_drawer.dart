@@ -11,6 +11,7 @@ import '../screens/personal_list_screen.dart';
 
 import '../screens/ventas_list_screen.dart';
 import '../screens/printer_settings_screen.dart';
+import '../screens/pedidos_programados_screen.dart';
 import '../providers/printer_provider.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -152,6 +153,18 @@ class AppDrawer extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const VentasListScreen()),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  context: context,
+                  icon: LucideIcons.calendarClock,
+                  title: 'Pedidos Programados',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PedidosProgramadosScreen()),
                     );
                   },
                 ),

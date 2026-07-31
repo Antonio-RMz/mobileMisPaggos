@@ -29,6 +29,7 @@ class _CarniceriaFormModalState extends State<CarniceriaFormModal> {
   final List<String> _categorias = ['Res', 'Cerdo', 'Cremería', 'Pollo', 'Otros'];
 
   bool _isSaving = false;
+  bool _esChicharron = false;
 
   @override
   void initState() {
@@ -38,6 +39,7 @@ class _CarniceriaFormModalState extends State<CarniceriaFormModal> {
       _codigoCtrl.text = widget.producto!.codigo;
       _precioCtrl.text = widget.producto!.precio.toString();
       _observacionesCtrl.text = widget.producto!.observaciones;
+      _esChicharron = widget.producto!.esChicharron;
       
       if (_unidadesVenta.contains(widget.producto!.unidadVenta)) {
         _selectedUnidadVenta = widget.producto!.unidadVenta;
@@ -88,6 +90,7 @@ class _CarniceriaFormModalState extends State<CarniceriaFormModal> {
             categoria: _selectedCategoria,
             unidadVenta: _selectedUnidadVenta,
             seccion: 'carniceria', // Fijo para carnicería
+            esChicharron: _esChicharron,
           );
           await _firebaseService.addProducto(nuevoProducto);
         } else {
@@ -98,6 +101,7 @@ class _CarniceriaFormModalState extends State<CarniceriaFormModal> {
           widget.producto!.categoria = _selectedCategoria;
           widget.producto!.unidadVenta = _selectedUnidadVenta;
           widget.producto!.seccion = 'carniceria'; // Asegurar que sea carniceria
+          widget.producto!.esChicharron = _esChicharron;
           await _firebaseService.updateProducto(widget.producto!);
         }
 
@@ -318,7 +322,6 @@ class _CarniceriaFormModalState extends State<CarniceriaFormModal> {
                   const SizedBox(height: 16),
         
                   Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildLabel('Observaciones (Opcional)'),
                       _buildTextField(
@@ -327,6 +330,21 @@ class _CarniceriaFormModalState extends State<CarniceriaFormModal> {
                         icon: Icons.notes,
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  CheckboxListTile(
+                    title: const Text('¿Es Chicharrón o derivado?', style: TextStyle(fontSize: 14, color: AppTheme.textDark)),
+                    subtitle: const Text('Se mostrará en la hoja de producción de Chicharrón', style: TextStyle(fontSize: 11)),
+                    value: _esChicharron,
+                    activeColor: Colors.redAccent,
+                    onChanged: (val) {
+                      setState(() {
+                        _esChicharron = val ?? false;
+                      });
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: 24),
         

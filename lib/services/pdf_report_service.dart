@@ -9,6 +9,8 @@ import '../models/gasto_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../providers/user_provider.dart';
 
 class PdfReportService {
   static final _currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
@@ -22,6 +24,7 @@ class PdfReportService {
   }
 
   static Future<void> generateCorteGeneralPdf(BuildContext context, List<Ticket> tickets, List<Abono> abonos, List<Gasto> gastos, String dateRangeLabel) async {
+    abonos = abonos.where((a) => a.ticketId != 'ENTREGA_GENERAL').toList();
     final pdf = pw.Document();
     
     final Map<String, String> clienteNames = {};
@@ -113,9 +116,10 @@ class PdfReportService {
     double totalRepartidoresDeben = 0;
     double totalGastos = 0;
     double totalRecibido = 0;
+    double totalOtrasEntradas = 0;
 
     for (var t in tickets) {
-      if (t.estadoEntrega != 'Cancelado') {
+      if (t.estadoEntrega != 'Cancelado' && t.estadoEntrega != 'Programado') {
         totalVendido += t.totalVenta;
         
         if (t.estado == 'Con Deuda' || t.formaVenta == 'Crédito') {
@@ -159,14 +163,30 @@ class PdfReportService {
 
     for (var g in gastos) {
       if (g.esDeCaja) {
-        totalGastos += g.monto;
+        bool isReturned = true;
+        if (g.tipoGasto == 'Cambio' && g.repartidorId != null && g.repartidorId!.isNotEmpty) {
+          final hasPending = tickets.any((t) =>
+              t.repartidorId == g.repartidorId &&
+              t.tipoEntrega == 'Domicilio' &&
+              !t.pagoRepartidorConfirmado &&
+              t.estadoEntrega != 'Cancelado' &&
+              t.estadoEntrega != 'Programado');
+          if (hasPending) {
+            isReturned = false;
+          }
+        }
+        if (g.tipoGasto != 'Cambio' || !isReturned) {
+          totalGastos += g.monto;
+        }
+      } else {
+        totalOtrasEntradas += g.monto;
       }
     }
 
     double totalTransferencias = 0;
     double totalEfectivoRecibido = 0;
     for (var t in tickets) {
-      if (t.estadoEntrega != 'Cancelado') {
+      if (t.estadoEntrega != 'Cancelado' && t.estadoEntrega != 'Programado') {
         double receivedAmount = 0;
         if (t.estado == 'Con Deuda' || t.formaVenta == 'Crédito') {
           if (t.tipoEntrega == 'Domicilio' && !t.pagoRepartidorConfirmado) {
@@ -208,6 +228,7 @@ class PdfReportService {
 
     List<Map<String, dynamic>> movimientos = [];
     for (var t in tickets) {
+      if (t.estadoEntrega == 'Programado') continue;
       final double initAbono = initialAbonoAmounts[t.id] ?? 0.0;
       movimientos.add({
         'fecha': t.fecha?.toDate() ?? DateTime.now(),
@@ -226,6 +247,14 @@ class PdfReportService {
       final isRepartidor = a.ticketId == 'ENTREGA_REPARTIDOR' || a.ticketId == 'ENTREGA_GENERAL';
       
       if (initialAbonoIds.contains(a.id)) continue;
+
+      // Skip client abonos collected in cash by a driver, because they are already accounted for in the ENTREGA_REPARTIDOR bulk abono
+      if (a.repartidorId != null && a.repartidorId!.isNotEmpty && !isRepartidor) {
+        final ticket = resolvedTickets[a.ticketId];
+        if (ticket == null || ticket.metodoPago == 'Efectivo') {
+          continue;
+        }
+      }
 
       // Skip the abono document if it corresponds to a Contado sale (since it's already shown in the Venta row)
       bool isContadoAbono = false;
@@ -386,18 +415,43 @@ class PdfReportService {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.SizedBox(height: 20),
-            pw.Text('Resumen de Conciliación Financiera', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey800)),
+            pw.Row(
+              children: [
+                pw.Expanded(
+                  child: pw.Text('Resumen de Conciliación Financiera', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey800)),
+                ),
+                pw.SizedBox(width: 20),
+                pw.Expanded(
+                  child: pw.Text('Resumen de Efectivo Físico y Salidas de Caja', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey800)),
+                ),
+              ],
+            ),
             pw.SizedBox(height: 8),
-            _buildConciliacionTable(
-              totalVendido,
-              totalEfectivoRecibido,
-              totalTransferencias,
-              totalClientesDeben,
-              totalRepartidoresDeben,
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: _buildConciliacionTable(
+                    totalEfectivoRecibido - totalGastos,
+                    totalTransferencias,
+                    totalClientesDeben,
+                    totalRepartidoresDeben,
+                    totalOtrasEntradas,
+                  ),
+                ),
+                pw.SizedBox(width: 20),
+                pw.Expanded(
+                  child: _buildUnifiedEfectivoCajaTable(
+                    totalEfectivoRecibido,
+                    gastos,
+                    tickets,
+                  ),
+                ),
+              ],
             ),
             pw.SizedBox(height: 6),
             pw.Text(
-              'Nota: Ventas Totales Conciliadas = Dinero recibido en caja (efectivo) + Transferencias recibidas + Adeudo de clientes + Dinero pendiente con repartidores.',
+              'Nota: Total Neto Conciliado = Efectivo neto en caja + Transferencias recibidas + Adeudo de clientes + Pendiente por entregar repartidores + Otras entradas.',
               style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700),
             ),
           ],
@@ -440,10 +494,12 @@ class PdfReportService {
   static Future<void> generateCorteRepartidorPdf(
       BuildContext context,
       String repartidorNombre,
-      List<Ticket> tickets,
+      List<Ticket> tickets, // These are ticketsRep
+      List<Ticket> allTickets,
       List<Abono> abonos,
       List<Gasto> gastos,
       String dateRangeLabel) async {
+    abonos = abonos.where((a) => a.ticketId != 'ENTREGA_GENERAL').toList();
     final pdf = pw.Document();
     
     // Cargar icono
@@ -451,6 +507,27 @@ class PdfReportService {
     final Uint8List byteList = bytes.buffer.asUint8List();
     final image = pw.MemoryImage(byteList);
 
+    // Calcular fondo de cambio dado al repartidor hoy
+    double totalCambioDado = 0;
+    for (var g in gastos) {
+      if (g.tipoGasto == 'Cambio' && g.repartidorNombre?.trim().toLowerCase() == repartidorNombre.trim().toLowerCase()) {
+        totalCambioDado += g.monto;
+      }
+    }
+
+    // Calcular las ventas en efectivo cobradas por el repartidor hoy
+    double totalVentasEfectivo = 0;
+    for (var t in tickets) {
+      if (t.estadoEntrega != 'Cancelado' && t.estadoEntrega != 'Programado' && t.metodoPago == 'Efectivo') {
+        if (t.formaVenta == 'Contado') {
+          totalVentasEfectivo += t.totalVenta;
+        } else {
+          totalVentasEfectivo += t.totalAbonado;
+        }
+      }
+    }
+
+    double abonosCobrados = 0;
     List<Abono> abonosDelRepartidor = [];
     for (var a in abonos) {
       if (a.ticketId != 'ENTREGA_REPARTIDOR' && a.ticketId != 'ENTREGA_GENERAL') {
@@ -458,8 +535,29 @@ class PdfReportService {
           bool isTicketInList = tickets.any((t) => t.id == a.ticketId);
           if (!isTicketInList) {
             abonosDelRepartidor.add(a);
+            abonosCobrados += a.monto;
+            totalVentasEfectivo += a.monto;
           }
         }
+      }
+    }
+
+    // Calcular entregas reales de efectivo del repartidor
+    double totalEntregado = 0;
+    for (var a in abonos) {
+      if ((a.ticketId == 'ENTREGA_REPARTIDOR' || a.ticketId == 'ENTREGA_GENERAL') && a.repartidorId == repartidorNombre) {
+        totalEntregado += a.monto;
+      }
+    }
+
+    double totalAEntregar = totalVentasEfectivo + totalCambioDado;
+    double totalPendiente = totalAEntregar - totalEntregado;
+    totalPendiente = totalPendiente < 0 ? 0.0 : totalPendiente;
+
+    List<Gasto> cambiosDelRepartidor = [];
+    for (var g in gastos) {
+      if (g.tipoGasto == 'Cambio' && g.repartidorNombre?.trim().toLowerCase() == repartidorNombre.trim().toLowerCase()) {
+        cambiosDelRepartidor.add(g);
       }
     }
     
@@ -514,7 +612,23 @@ class PdfReportService {
             pw.Text('Abonos Cobrados', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.orange800)),
             pw.SizedBox(height: 10),
             _buildAbonosTable(abonosDelRepartidor, fetchedTickets: fetchedTickets),
-          ]
+          ],
+          if (cambiosDelRepartidor.isNotEmpty) ...[
+            pw.SizedBox(height: 20),
+            pw.Text('Fondos de Cambio Recibidos', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.purple800)),
+            pw.SizedBox(height: 10),
+            _buildCambiosRepartidorTable(cambiosDelRepartidor),
+          ],
+          pw.SizedBox(height: 20),
+          pw.Text('Resumen de Conciliación - Repartidor', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 10),
+          _buildRepartidorResumenCajaTable(
+            totalVentasEfectivo: totalVentasEfectivo,
+            totalCambioDado: totalCambioDado,
+            totalAEntregar: totalAEntregar,
+            totalEntregado: totalEntregado,
+            totalPendiente: totalPendiente,
+          ),
         ],
       ),
     );
@@ -692,6 +806,106 @@ class PdfReportService {
     );
   }
 
+  static pw.Widget _buildRepartidorResumenCajaTable({
+    required double totalVentasEfectivo,
+    required double totalCambioDado,
+    required double totalAEntregar,
+    required double totalEntregado,
+    required double totalPendiente,
+  }) {
+    final data = [
+      [
+        'Ventas / Cobros en Efectivo',
+        _currencyFormat.format(totalVentasEfectivo),
+      ],
+      [
+        'Fondo de Cambio Recibido',
+        _currencyFormat.format(totalCambioDado),
+      ],
+      [
+        pw.Text('TOTAL A ENTREGAR', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+        pw.Text(_currencyFormat.format(totalAEntregar), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+      ],
+      [
+        'Total Entregado (Caja)',
+        _currencyFormat.format(totalEntregado),
+      ],
+      [
+        pw.Text('SALDO PENDIENTE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.red800)),
+        pw.Text(_currencyFormat.format(totalPendiente), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.red800)),
+      ],
+    ];
+
+    return pw.TableHelper.fromTextArray(
+      headers: ['Concepto', 'Monto'],
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+      rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
+      cellStyle: const pw.TextStyle(fontSize: 9),
+      data: data,
+      columnWidths: {
+        0: const pw.FlexColumnWidth(5),
+        1: const pw.FlexColumnWidth(3),
+      },
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.centerRight,
+      },
+      headerAlignments: {
+        1: pw.Alignment.centerRight,
+      },
+    );
+  }
+
+  static pw.Widget _buildCambiosRepartidorTable(List<Gasto> cambios) {
+    double sumCambio = 0;
+    for (var c in cambios) {
+      sumCambio += c.monto;
+    }
+
+    final List<List<dynamic>> data = cambios.map<List<dynamic>>((c) {
+      final fechaStr = c.fecha != null ? _dateFormat.format(c.fecha!.toDate()) : '-';
+      return [
+        fechaStr,
+        c.concepto,
+        c.esDeCaja ? 'Caja Física' : 'Fondos Externos',
+        _currencyFormat.format(c.monto),
+      ];
+    }).toList();
+
+    data.add([
+      pw.Text('TOTAL', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+      '',
+      '',
+      pw.Text(_currencyFormat.format(sumCambio), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+    ]);
+
+    return pw.TableHelper.fromTextArray(
+      headers: ['Fecha', 'Concepto', 'Origen', 'Monto'],
+      data: data,
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+      cellStyle: const pw.TextStyle(fontSize: 9),
+      rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
+      oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+      columnWidths: {
+        0: const pw.FlexColumnWidth(2.5),
+        1: const pw.FlexColumnWidth(4),
+        2: const pw.FlexColumnWidth(2),
+        3: const pw.FlexColumnWidth(1.5),
+      },
+      cellAlignments: {
+        0: pw.Alignment.centerLeft,
+        1: pw.Alignment.centerLeft,
+        2: pw.Alignment.centerLeft,
+        3: pw.Alignment.centerRight,
+      },
+      headerAlignments: {
+        3: pw.Alignment.centerRight,
+      },
+    );
+  }
+
   static pw.Widget _buildAbonosTable(List<Abono> abonos, {Map<String, Ticket> fetchedTickets = const {}}) {
     double sumAbono = 0;
     for (var a in abonos) {
@@ -800,7 +1014,9 @@ class PdfReportService {
       if (estado != 'Cancelado') {
         if (tipo == 'Venta') {
           final t = obj as Ticket;
-          final double initAbono = mov['initialAbono'] as double? ?? 0.0;
+          final double initAbono = (t.tipoEntrega == 'Domicilio' && t.metodoPago == 'Efectivo')
+              ? 0.0
+              : (mov['initialAbono'] as double? ?? 0.0);
           if (t.estado == 'Con Deuda' || t.formaVenta == 'Crédito') {
             pendCliente = t.saldoRestante;
             if (t.tipoEntrega == 'Domicilio' && !t.pagoRepartidorConfirmado) {
@@ -961,7 +1177,9 @@ class PdfReportService {
         if (tipo == 'Venta') {
           sumVentas += monto;
           final t = obj as Ticket;
-          final double initAbono = mov['initialAbono'] as double? ?? 0.0;
+          final double initAbono = (t.tipoEntrega == 'Domicilio' && t.metodoPago == 'Efectivo')
+              ? 0.0
+              : (mov['initialAbono'] as double? ?? 0.0);
           if (initAbono > 0) {
             sumAbonosCliente += initAbono;
           } else if (t.formaVenta == 'Contado' && (t.tipoEntrega != 'Domicilio' || t.metodoPago != 'Efectivo')) {
@@ -1067,56 +1285,13 @@ class PdfReportService {
       },
     );
 
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-      children: [
-        table,
-        pw.SizedBox(height: 4),
-        pw.Container(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-          decoration: pw.BoxDecoration(
-            color: PdfColors.grey100,
-            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-            border: pw.Border.all(color: PdfColors.grey300, width: 0.8),
-          ),
-          child: pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            children: [
-              pw.Row(
-                children: [
-                  pw.Text(
-                    'FÓRMULA CAJA: ',
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7, color: PdfColors.blueGrey800),
-                  ),
-                  pw.Text(
-                    'Abonos (${_currencyFormat.format(sumAbonosCliente + sumAbonosRepartidor)}) + O. Entradas (${_currencyFormat.format(sumOtras)}) - Gastos (${_currencyFormat.format(sumGastos)})',
-                    style: pw.TextStyle(fontSize: 7, fontStyle: pw.FontStyle.italic, color: PdfColors.grey800),
-                  ),
-                ],
-              ),
-              pw.Row(
-                children: [
-                  pw.Text(
-                    'TOTAL NETO: ',
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8, color: PdfColors.blueGrey900),
-                  ),
-                  pw.Text(
-                    _currencyFormat.format(totalNeto),
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8, color: PdfColors.blueGrey900),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+    return table;
   }
 
   static pw.Widget _buildClientesDeudoresTable(List<Ticket> tickets) {
     // Filtrar los tickets de clientes que deban a crédito
     final List<Ticket> deudoresTickets = tickets
-        .where((t) => t.estadoEntrega != 'Cancelado' && t.formaVenta == 'Crédito' && t.saldoRestante > 0)
+        .where((t) => t.estadoEntrega != 'Cancelado' && t.estadoEntrega != 'Programado' && t.formaVenta == 'Crédito' && t.saldoRestante > 0)
         .toList();
 
     if (deudoresTickets.isEmpty) {
@@ -1179,7 +1354,7 @@ class PdfReportService {
     ]);
 
     return pw.TableHelper.fromTextArray(
-      headers: ['Fecha', 'Folio', 'Cliente', 'Clave', 'Productos', 'Adeudo'],
+      headers: ['Fecha', 'Folio', 'Cliente', 'Clave de producto', 'Productos', 'Adeudo'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
       rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
@@ -1213,7 +1388,7 @@ class PdfReportService {
     int totalTicketsCount = 0;
 
     for (var t in tickets) {
-      if (t.estadoEntrega != 'Cancelado' && t.tipoEntrega == 'Domicilio' && !t.pagoRepartidorConfirmado) {
+      if (t.estadoEntrega != 'Cancelado' && t.estadoEntrega != 'Programado' && t.tipoEntrega == 'Domicilio' && !t.pagoRepartidorConfirmado) {
         String repartidor = t.repartidorNombre?.isNotEmpty == true ? t.repartidorNombre!.trim() : 'Sin Asignar';
         if (repartidor.contains('Sucursal')) repartidor = 'Sucursal';
         
@@ -1387,16 +1562,17 @@ class PdfReportService {
   }
 
   static pw.Widget _buildConciliacionTable(
-    double totalVendido,
-    double totalEfectivo,
+    double totalEfectivoNeto,
     double totalTransferencias,
     double totalClientesDeben,
     double totalRepartidoresDeben,
+    double totalOtrasEntradas,
   ) {
+    final double totalNetoConciliado = totalEfectivoNeto + totalTransferencias + totalClientesDeben + totalRepartidoresDeben + totalOtrasEntradas;
     final data = [
       [
-        'Dinero recibido en caja (efectivo)',
-        _currencyFormat.format(totalEfectivo),
+        'Efectivo neto en caja',
+        _currencyFormat.format(totalEfectivoNeto),
       ],
       [
         'Transferencias recibidas',
@@ -1407,12 +1583,16 @@ class PdfReportService {
         _currencyFormat.format(totalClientesDeben),
       ],
       [
-        'Dinero con repartidores',
+        'Pendiente por entregar repartidores',
         _currencyFormat.format(totalRepartidoresDeben),
       ],
       [
-        pw.Text('VENTAS TOTALES CONCILIADAS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-        pw.Text(_currencyFormat.format(totalVendido), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+        'Otras entradas',
+        _currencyFormat.format(totalOtrasEntradas),
+      ],
+      [
+        pw.Text('TOTAL NETO CONCILIADO', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+        pw.Text(_currencyFormat.format(totalNetoConciliado), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
       ],
     ];
 
@@ -1437,52 +1617,75 @@ class PdfReportService {
     );
   }
 
-  static pw.Widget _buildGastosTable(List<Gasto> gastos) {
+  static pw.Widget _buildUnifiedEfectivoCajaTable(double totalEfectivo, List<Gasto> gastos, List<Ticket> tickets) {
     double sumGastos = 0;
+    final List<List<dynamic>> rows = [];
+
+    // Add starting cash
+    rows.add([
+      'Total Efectivo Recibido (Entradas Brutas)',
+      _currencyFormat.format(totalEfectivo),
+    ]);
+
+    // Add each expense
     for (var g in gastos) {
-      sumGastos += g.monto;
+      if (g.esDeCaja) {
+        bool isReturned = true;
+        if (g.tipoGasto == 'Cambio' && g.repartidorId != null && g.repartidorId!.isNotEmpty) {
+          final hasPending = tickets.any((t) =>
+              t.repartidorId == g.repartidorId &&
+              t.tipoEntrega == 'Domicilio' &&
+              !t.pagoRepartidorConfirmado &&
+              t.estadoEntrega != 'Cancelado' &&
+              t.estadoEntrega != 'Programado');
+          if (hasPending) {
+            isReturned = false;
+          }
+        }
+
+        String concepto = g.concepto;
+        if (g.tipoGasto == 'Cambio' && g.repartidorNombre != null && g.repartidorNombre!.isNotEmpty) {
+          concepto = isReturned ? 'Fondo de Cambio (Devuelto) - ${g.repartidorNombre}' : 'Fondo de Cambio (En Ruta) - ${g.repartidorNombre}';
+        }
+
+        if (g.tipoGasto != 'Cambio' || !isReturned) {
+          sumGastos += g.monto;
+          rows.add([
+            '  Salida: $concepto',
+            '- ${_currencyFormat.format(g.monto)}',
+          ]);
+        } else {
+          rows.add([
+            '  $concepto',
+            _currencyFormat.format(0.0),
+          ]);
+        }
+      }
     }
 
-    final List<List<dynamic>> data = gastos.map<List<dynamic>>((g) {
-      final fechaStr = g.fecha != null ? _dateFormat.format(g.fecha!.toDate()) : '-';
-
-      return [
-        fechaStr,
-        g.concepto,
-        g.createBy,
-        '- ${_currencyFormat.format(g.monto)}',
-      ];
-    }).toList();
-
-    data.add([
-      pw.Text('TOTALES', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-      '',
-      '',
-      pw.Text('- ${_currencyFormat.format(sumGastos)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+    // Add net cash
+    rows.add([
+      pw.Text('EFECTIVO FÍSICO NETO EN CAJA', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.green800)),
+      pw.Text(_currencyFormat.format(totalEfectivo - sumGastos), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.green800)),
     ]);
 
     return pw.TableHelper.fromTextArray(
-      headers: ['Fecha', 'Concepto', 'Registrado Por', 'Monto Retirado'],
-      data: data,
+      headers: ['Concepto de Caja', 'Monto'],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-      cellStyle: const pw.TextStyle(fontSize: 9),
       rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
-      oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+      cellStyle: const pw.TextStyle(fontSize: 9),
+      data: rows,
       columnWidths: {
-        0: const pw.FlexColumnWidth(1.5),
+        0: const pw.FlexColumnWidth(5),
         1: const pw.FlexColumnWidth(3),
-        2: const pw.FlexColumnWidth(1.5),
-        3: const pw.FlexColumnWidth(1.5),
       },
       cellAlignments: {
         0: pw.Alignment.centerLeft,
-        1: pw.Alignment.centerLeft,
-        2: pw.Alignment.centerLeft,
-        3: pw.Alignment.centerRight,
+        1: pw.Alignment.centerRight,
       },
       headerAlignments: {
-        3: pw.Alignment.centerRight,
+        1: pw.Alignment.centerRight,
       },
     );
   }
@@ -1498,7 +1701,8 @@ class PdfReportService {
     Map<String, double> contCatalogo = {};
 
     for (var t in tickets) {
-      if (t.estadoEntrega != 'Cancelado') {
+      if (t.esProgramado) continue;
+      if (t.estadoEntrega != 'Cancelado' && t.estadoEntrega != 'Programado') {
         for (var item in t.productos) {
           if (item.seccion == 'carniceria') {
             contCarnes[item.nombre] = (contCarnes[item.nombre] ?? 0.0) + item.cantidad;
@@ -1601,6 +1805,7 @@ class PdfReportService {
 
       Map<String, List<Ticket>> ticketsByClient = {};
       for (var t in tickets) {
+        if (t.estadoEntrega == 'Programado') continue;
         if (!ticketsByClient.containsKey(t.clienteId)) ticketsByClient[t.clienteId] = [];
         ticketsByClient[t.clienteId]!.add(t);
       }
@@ -1884,6 +2089,181 @@ class PdfReportService {
             content: Text('Error al generar Reporte de Deudores: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  static Future<void> generateReportePedidosProgramadosPdf(
+      BuildContext context, DateTime startDate, DateTime endDate, String dateRangeLabel) async {
+    BuildContext? loadingCtx;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        loadingCtx = ctx;
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final empresaId = userProvider.empresaId;
+
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('tickets')
+          .where('empresaId', isEqualTo: empresaId)
+          .get();
+
+      final startStamp = Timestamp.fromDate(startDate);
+      final endStamp = Timestamp.fromDate(endDate);
+
+      final tickets = querySnapshot.docs
+          .map((doc) => Ticket.fromMap(doc.id, doc.data()))
+          .where((t) {
+            if (!t.esProgramado) return false;
+            if (t.createAt == null) return false;
+            return t.createAt!.compareTo(startStamp) >= 0 && t.createAt!.compareTo(endStamp) <= 0;
+          })
+          .toList();
+
+      if (loadingCtx != null && loadingCtx!.mounted) {
+        Navigator.pop(loadingCtx!);
+      }
+
+      if (tickets.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se encontraron pedidos programados agendados en este periodo.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Sort by createAt
+      tickets.sort((a, b) => (a.createAt ?? Timestamp.now()).compareTo(b.createAt ?? Timestamp.now()));
+
+      final pdf = pw.Document();
+      final ByteData bytes = await rootBundle.load('assets/images/iconoInicio.png');
+      final Uint8List byteList = bytes.buffer.asUint8List();
+      final image = pw.MemoryImage(byteList);
+
+      final List<List<dynamic>> tableData = [];
+      double totalAgendado = 0;
+
+      for (var t in tickets) {
+        final createDate = t.createAt?.toDate() ?? DateTime.now();
+        final deliveryDate = t.fechaEntregaProgramada?.toDate() ?? DateTime.now();
+
+        final String createStr = _dateFormat.format(createDate) + ' ' + DateFormat('hh:mm a').format(createDate);
+        final String deliveryStr = _dateFormat.format(deliveryDate) + ' ' + DateFormat('hh:mm a').format(deliveryDate);
+
+        final String itemsDesc = t.productos.map((item) => '${item.cantidad % 1 == 0 ? item.cantidad.toInt() : item.cantidad.toStringAsFixed(2)} ${item.unidadVenta} x ${item.nombre}').join('\n');
+
+        tableData.add([
+          createStr,
+          deliveryStr,
+          t.folio,
+          t.clienteNombre,
+          itemsDesc,
+          _currencyFormat.format(t.totalVenta),
+          t.estadoEntrega,
+        ]);
+
+        totalAgendado += t.totalVenta;
+      }
+
+      tableData.add([
+        pw.Text('TOTALES', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+        '',
+        '',
+        '',
+        pw.Text('${tickets.length} Pedido(s)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+        pw.Text(_currencyFormat.format(totalAgendado), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+        '',
+      ]);
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.letter,
+          margin: const pw.EdgeInsets.all(32),
+          header: (context) => _buildHeader('Reporte de Pedidos Programados Agendados', dateRangeLabel, image),
+          footer: (context) => pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(
+              'Pág. ${context.pageNumber} de ${context.pagesCount}',
+              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+            ),
+          ),
+          build: (pw.Context context) {
+            return [
+              pw.SizedBox(height: 20),
+              pw.TableHelper.fromTextArray(
+                headers: ['F. Creación', 'F. Entrega', 'Folio', 'Cliente', 'Productos', 'Total Venta', 'Estado Actual'],
+                data: tableData,
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 8),
+                headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+                cellStyle: const pw.TextStyle(fontSize: 7),
+                rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))),
+                oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(1.5), // F. Creacion
+                  1: const pw.FlexColumnWidth(1.5), // F. Entrega
+                  2: const pw.FlexColumnWidth(0.8), // Folio
+                  3: const pw.FlexColumnWidth(1.8), // Cliente
+                  4: const pw.FlexColumnWidth(2.5), // Productos
+                  5: const pw.FlexColumnWidth(1.0), // Total Venta
+                  6: const pw.FlexColumnWidth(1.0), // Estado
+                },
+                cellAlignments: {
+                  0: pw.Alignment.centerLeft,
+                  1: pw.Alignment.centerLeft,
+                  2: pw.Alignment.centerLeft,
+                  3: pw.Alignment.centerLeft,
+                  4: pw.Alignment.centerLeft,
+                  5: pw.Alignment.centerRight,
+                  6: pw.Alignment.centerLeft,
+                },
+                headerAlignments: {
+                  5: pw.Alignment.centerRight,
+                },
+              ),
+            ];
+          },
+        ),
+      );
+
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => Scaffold(
+              appBar: AppBar(title: const Text('Vista Previa del Reporte')),
+              body: PdfPreview(
+                build: (format) async => pdf.save(),
+                canChangeOrientation: false,
+                canChangePageFormat: false,
+                canDebug: false,
+                pdfFileName: 'reportePedidosProgramados-${DateFormat('ddMMyyyy').format(DateTime.now())}.pdf',
+              ),
+            ),
+          ),
+        );
+      }
+
+    } catch (e) {
+      if (loadingCtx != null && loadingCtx!.mounted) {
+        Navigator.pop(loadingCtx!);
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al generar Reporte de Pedidos Programados: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }

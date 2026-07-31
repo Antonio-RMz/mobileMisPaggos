@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/notification_bell.dart';
 import 'catalogo_view.dart';
 import 'carniceria_view.dart';
 
@@ -15,6 +16,9 @@ class ProductosMainScreen extends StatelessWidget {
         drawer: const AppDrawer(),
         appBar: AppBar(
           title: const Text('Inventario y Precios'),
+          actions: const [
+            NotificationBell(),
+          ],
           bottom: const TabBar(
             indicatorColor: AppTheme.primary,
             labelColor: AppTheme.primary,

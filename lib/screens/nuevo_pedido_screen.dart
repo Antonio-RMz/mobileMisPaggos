@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -440,6 +441,12 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
     bool esCredito = false;
     String metodoPago = 'Efectivo';
 
+    // Variables para pedidos programados
+    bool esProgramado = false;
+    DateTime? fechaProgramada;
+    TimeOfDay? horaProgramada;
+    bool pagadoAnticipado = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -523,72 +530,243 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  StreamBuilder<List<Personal>>(
-                    stream: _firebaseService.getPersonalStream(),
-                    builder: (context, snapshot) {
-                      List<Personal> repartidores = [];
-                      
-                      if (hasCatalogo) {
-                        repartidores.add(Personal(
-                          id: 'SUCURSAL',
-                          nombre: 'Sucursal (Venta en tienda)',
-                          telefono: '',
-                          rol: 'Repartidor',
-                          activo: true,
-                          createAt: Timestamp.now(),
-                        ));
-                      } else {
-                        if (snapshot.hasData) {
-                          repartidores = snapshot.data!.where((p) => p.activo).toList();
+                  // Preguntar si es programado
+                  CheckboxListTile(
+                    title: const Text('¿Es un pedido programado?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    value: esProgramado,
+                    activeColor: AppTheme.accent,
+                    onChanged: (val) {
+                      setModalState(() {
+                        esProgramado = val ?? false;
+                        if (esProgramado) {
+                          repartidorId = null;
+                          repartidorNombre = null;
+                        } else {
+                          repartidorId = hasCatalogo ? 'SUCURSAL' : null;
+                          repartidorNombre = hasCatalogo ? 'Sucursal (Venta en tienda)' : null;
                         }
+                      });
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                  ),
 
-                        repartidores.insert(0, Personal(
-                          id: 'SUCURSAL',
-                          nombre: 'Sucursal (Venta en tienda)',
-                          telefono: '',
-                          rol: 'Repartidor',
-                          activo: true,
-                          createAt: Timestamp.now(),
-                        ));
+                  if (esProgramado) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        border: Border.all(color: Colors.amber.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Detalles de Entrega Programada',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark, fontSize: 14),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final date = await showDatePicker(
+                                      context: context,
+                                      initialDate: DateTime.now(),
+                                      firstDate: DateTime.now(),
+                                      lastDate: DateTime.now().add(const Duration(days: 30)),
+                                    );
+                                    if (date != null) {
+                                      setModalState(() {
+                                        fechaProgramada = date;
+                                      });
+                                    }
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    side: BorderSide(color: Colors.amber.shade400),
+                                  ),
+                                  icon: const Icon(Icons.calendar_today, size: 16, color: Colors.orange),
+                                  label: Text(
+                                    fechaProgramada != null
+                                        ? DateFormat('dd/MM/yyyy').format(fechaProgramada!)
+                                        : 'Fecha',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final now = DateTime.now();
+                                    TimeOfDay tempTime = horaProgramada ?? TimeOfDay.now();
 
-                        if (repartidores.isEmpty) {
-                          // Si no hay datos o estamos offline sin caché, proveemos un repartidor de rescate
+                                    showDialog(
+                                      context: context,
+                                      builder: (BuildContext dialogContext) {
+                                        return Dialog(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          child: Container(
+                                            width: 320,
+                                            height: 320,
+                                            padding: const EdgeInsets.all(16),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Text(
+                                                  'Seleccionar Hora',
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: AppTheme.textDark,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Expanded(
+                                                  child: CupertinoDatePicker(
+                                                    mode: CupertinoDatePickerMode.time,
+                                                    initialDateTime: DateTime(
+                                                      now.year,
+                                                      now.month,
+                                                      now.day,
+                                                      tempTime.hour,
+                                                      tempTime.minute,
+                                                    ),
+                                                    use24hFormat: false,
+                                                    onDateTimeChanged: (DateTime newDateTime) {
+                                                      tempTime = TimeOfDay.fromDateTime(newDateTime);
+                                                    },
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Row(
+                                                  mainAxisAlignment: MainAxisAlignment.end,
+                                                  children: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(dialogContext),
+                                                      child: const Text(
+                                                        'Cancelar',
+                                                        style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    ElevatedButton(
+                                                      onPressed: () {
+                                                        setModalState(() {
+                                                          horaProgramada = tempTime;
+                                                        });
+                                                        Navigator.pop(dialogContext);
+                                                      },
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor: AppTheme.accent,
+                                                        shape: RoundedRectangleBorder(
+                                                          borderRadius: BorderRadius.circular(8),
+                                                        ),
+                                                      ),
+                                                      child: const Text('Aceptar', style: TextStyle(color: Colors.white)),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    side: BorderSide(color: Colors.amber.shade400),
+                                  ),
+                                  icon: const Icon(Icons.access_time, size: 16, color: Colors.orange),
+                                  label: Text(
+                                    horaProgramada != null
+                                        ? horaProgramada!.format(context)
+                                        : 'Hora',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    StreamBuilder<List<Personal>>(
+                      stream: _firebaseService.getPersonalStream(),
+                      builder: (context, snapshot) {
+                        List<Personal> repartidores = [];
+                        
+                        if (hasCatalogo) {
                           repartidores.add(Personal(
-                            id: 'REP_TEMP_OFFLINE',
-                            nombre: 'Repartidor Temporal (Offline)',
+                            id: 'SUCURSAL',
+                            nombre: 'Sucursal (Venta en tienda)',
                             telefono: '',
                             rol: 'Repartidor',
                             activo: true,
                             createAt: Timestamp.now(),
                           ));
+                        } else {
+                          if (snapshot.hasData) {
+                            repartidores = snapshot.data!.where((p) => p.activo).toList();
+                          }
+
+                          repartidores.insert(0, Personal(
+                            id: 'SUCURSAL',
+                            nombre: 'Sucursal (Venta en tienda)',
+                            telefono: '',
+                            rol: 'Repartidor',
+                            activo: true,
+                            createAt: Timestamp.now(),
+                          ));
+
+                          if (repartidores.isEmpty) {
+                            repartidores.add(Personal(
+                              id: 'REP_TEMP_OFFLINE',
+                              nombre: 'Repartidor Temporal (Offline)',
+                              telefono: '',
+                              rol: 'Repartidor',
+                              activo: true,
+                              createAt: Timestamp.now(),
+                            ));
+                          }
                         }
-                      }
-                      
-                      return DropdownButtonFormField<String>(
-                        value: repartidorId,
-                        decoration: InputDecoration(
-                          labelText: 'Asignar Repartidor',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          prefixIcon: const Icon(Icons.two_wheeler, color: Colors.orange),
-                          helperText: hasCatalogo ? 'Venta de catálogo: Solo entrega en sucursal' : null,
-                          helperStyle: hasCatalogo ? const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold) : null,
-                        ),
-                        hint: const Text('Seleccionar repartidor...'),
-                        items: repartidores.map((r) {
-                          return DropdownMenuItem(value: r.id, child: Text(r.nombre));
-                        }).toList(),
-                        onChanged: hasCatalogo ? null : (val) {
-                          setModalState(() {
-                            repartidorId = val;
-                            repartidorNombre = repartidores.firstWhere((r) => r.id == val).nombre;
-                          });
-                        },
-                      );
-                    },
-                  ),
-                  if (repartidorId != null) ...[
+                        
+                        return DropdownButtonFormField<String>(
+                          value: repartidorId,
+                          decoration: InputDecoration(
+                            labelText: 'Asignar Repartidor',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            prefixIcon: const Icon(Icons.two_wheeler, color: Colors.orange),
+                            helperText: hasCatalogo ? 'Venta de catálogo: Solo entrega en sucursal' : null,
+                            helperStyle: hasCatalogo ? const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold) : null,
+                          ),
+                          hint: const Text('Seleccionar repartidor...'),
+                          items: repartidores.map((r) {
+                            return DropdownMenuItem(value: r.id, child: Text(r.nombre));
+                          }).toList(),
+                          onChanged: hasCatalogo ? null : (val) {
+                            setModalState(() {
+                              repartidorId = val;
+                              repartidorNombre = repartidores.firstWhere((r) => r.id == val).nombre;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ],
+
+                  if (repartidorId != null && !esProgramado) ...[
                     const SizedBox(height: 16),
                     Wrap(
                       spacing: 8.0,
@@ -611,6 +789,46 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                         ),
                       ],
                     ),
+
+                    if (esProgramado && !esCredito) ...[
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        title: const Text('¿Ya fue pagado por anticipado?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        value: pagadoAnticipado,
+                        activeColor: AppTheme.accent,
+                        onChanged: (val) {
+                          setModalState(() {
+                            pagadoAnticipado = val ?? false;
+                          });
+                        },
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                      if (pagadoAnticipado) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Text('Método de Pago: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              label: const Text('Efectivo'),
+                              selected: metodoPago == 'Efectivo',
+                              onSelected: (val) => setModalState(() => metodoPago = 'Efectivo'),
+                              selectedColor: AppTheme.primary.withOpacity(0.2),
+                            ),
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              label: const Text('Transferencia'),
+                              selected: metodoPago == 'Transferencia',
+                              onSelected: (val) => setModalState(() => metodoPago = 'Transferencia'),
+                              selectedColor: AppTheme.primary.withOpacity(0.2),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+
                     if (esCredito) ...[
                       const SizedBox(height: 16),
                       TextField(
@@ -632,8 +850,13 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                       backgroundColor: AppTheme.accent,
                     ),
                     onPressed: () async {
-                      if (repartidorId == null) {
+                      if (repartidorId == null && !esProgramado) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor asigna un repartidor.')));
+                        return;
+                      }
+
+                      if (esProgramado && (fechaProgramada == null || horaProgramada == null)) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor selecciona la fecha y hora de entrega.'), backgroundColor: Colors.red));
                         return;
                       }
 
@@ -659,31 +882,51 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                         double abonoIngresado = 0.0;
                         String estadoPedido = 'Con Deuda';
 
-                        if (!esCredito) {
-                          if (repartidorId == 'SUCURSAL') {
-                            abonoIngresado = totalVenta;
-                            estadoPedido = 'Pagado';
+                        if (esProgramado) {
+                          if (esCredito) {
+                            abonoIngresado = double.tryParse(abonoCtrl.text) ?? 0.0;
+                            if (abonoIngresado >= totalVenta) {
+                              abonoIngresado = totalVenta;
+                              estadoPedido = 'Pagado';
+                            } else {
+                              estadoPedido = 'Con Deuda';
+                            }
                           } else {
-                            abonoIngresado = 0.0;
-                            estadoPedido = 'Pendiente';
+                            if (pagadoAnticipado) {
+                              abonoIngresado = totalVenta;
+                              estadoPedido = 'Pagado';
+                            } else {
+                              abonoIngresado = 0.0;
+                              estadoPedido = 'Pendiente';
+                            }
                           }
                         } else {
-                          abonoIngresado = double.tryParse(abonoCtrl.text) ?? 0.0;
-                          if (abonoIngresado >= totalVenta) {
-                            abonoIngresado = totalVenta;
-                            estadoPedido = 'Pagado';
+                          if (!esCredito) {
+                            if (repartidorId == 'SUCURSAL') {
+                              abonoIngresado = totalVenta;
+                              estadoPedido = 'Pagado';
+                            } else {
+                              abonoIngresado = 0.0;
+                              estadoPedido = 'Pendiente';
+                            }
                           } else {
-                            estadoPedido = 'Con Deuda';
+                            abonoIngresado = double.tryParse(abonoCtrl.text) ?? 0.0;
+                            if (abonoIngresado >= totalVenta) {
+                              abonoIngresado = totalVenta;
+                              estadoPedido = 'Pagado';
+                            } else {
+                              estadoPedido = 'Con Deuda';
+                            }
                           }
                         }
 
                         final ticket = Ticket(
                           clienteId: _currentCliente.id != '' ? _currentCliente.id : 'GNR001',
                           clienteNombre: clienteNombreFinal,
-                          tipoEntrega: repartidorId == 'SUCURSAL' ? 'Local' : 'Domicilio',
+                          tipoEntrega: esProgramado ? 'Domicilio' : (repartidorId == 'SUCURSAL' ? 'Local' : 'Domicilio'),
                           repartidorId: repartidorId,
                           repartidorNombre: repartidorNombre,
-                          estadoEntrega: repartidorId == 'SUCURSAL' ? 'Entregado' : 'Pendiente',
+                          estadoEntrega: esProgramado ? 'Programado' : 'Entregado',
                           productos: cart.items.map((i) {
                             return TicketItem(
                               productoId: i.producto.id,
@@ -694,6 +937,7 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                               observaciones: i.observaciones,
                               unidadVenta: i.producto.unidadVenta,
                               seccion: i.producto.seccion,
+                              esChicharron: i.producto.esChicharron,
                             );
                           }).toList(),
                           totalVenta: totalVenta,
@@ -702,7 +946,19 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                           metodoPago: metodoPago,
                           formaVenta: esCredito ? 'Crédito' : 'Contado',
                           deudaManualAsignada: esCredito,
-                          pagoRepartidorConfirmado: (repartidorId == 'SUCURSAL') || (esCredito && abonoIngresado == 0.0),
+                          pagoRepartidorConfirmado: esProgramado
+                              ? (pagadoAnticipado || (esCredito && abonoIngresado == 0.0))
+                              : ((repartidorId == 'SUCURSAL') || (esCredito && abonoIngresado == 0.0)),
+                          esProgramado: esProgramado,
+                          fechaEntregaProgramada: esProgramado && fechaProgramada != null && horaProgramada != null
+                              ? Timestamp.fromDate(DateTime(
+                                  fechaProgramada!.year,
+                                  fechaProgramada!.month,
+                                  fechaProgramada!.day,
+                                  horaProgramada!.hour,
+                                  horaProgramada!.minute,
+                                ))
+                              : null,
                           createBy: userName,
                         );
                         
@@ -992,12 +1248,17 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
               return _buildConceptoLibreCard(cart, context);
             }
             final p = productos[index - 1];
+            final bool isChicharronItem = p.esChicharron || p.nombre.toLowerCase().contains('chicharron') || p.nombre.toLowerCase().contains('chicharrón');
             return Card(
               elevation: 0,
               margin: const EdgeInsets.only(bottom: 12),
+              color: isChicharronItem ? Colors.orange.shade50.withOpacity(0.35) : Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.grey.withOpacity(0.1)),
+                side: BorderSide(
+                  color: isChicharronItem ? Colors.orange.withOpacity(0.35) : Colors.grey.withOpacity(0.1),
+                  width: isChicharronItem ? 1.5 : 1.0,
+                ),
               ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
@@ -1038,10 +1299,17 @@ class _NuevoPedidoScreenState extends State<NuevoPedidoScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isCarniceria ? Colors.redAccent.withOpacity(0.05) : AppTheme.primary.withOpacity(0.05),
+                          color: isChicharronItem 
+                              ? Colors.orange.withOpacity(0.12)
+                              : (isCarniceria ? Colors.redAccent.withOpacity(0.05) : AppTheme.primary.withOpacity(0.05)),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(isCarniceria ? Icons.set_meal : _getCategoryIcon(p.categoria), color: isCarniceria ? Colors.redAccent : AppTheme.primary),
+                        child: Icon(
+                          isChicharronItem 
+                              ? Icons.local_fire_department 
+                              : (isCarniceria ? Icons.set_meal : _getCategoryIcon(p.categoria)), 
+                          color: isChicharronItem ? Colors.orange.shade800 : (isCarniceria ? Colors.redAccent : AppTheme.primary),
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(

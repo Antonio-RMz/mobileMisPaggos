@@ -26,6 +26,7 @@ class _ProductoFormModalState extends State<ProductoFormModal> {
   final List<String> _categorias = ['Calzado', 'Cosméticos', 'Ropa', 'Otros'];
 
   bool _isSaving = false;
+  bool _esChicharron = false;
 
   @override
   void initState() {
@@ -36,6 +37,7 @@ class _ProductoFormModalState extends State<ProductoFormModal> {
       _precioCtrl.text = widget.producto!.precio.toString();
       _observacionesCtrl.text = widget.producto!.observaciones;
       _selectedCategoria = widget.producto!.categoria;
+      _esChicharron = widget.producto!.esChicharron;
       if (!_categorias.contains(_selectedCategoria)) {
         _categorias.insert(0, _selectedCategoria);
       }
@@ -78,6 +80,7 @@ class _ProductoFormModalState extends State<ProductoFormModal> {
             observaciones: _observacionesCtrl.text.trim(),
             categoria: _selectedCategoria,
             seccion: 'catalogo',
+            esChicharron: _esChicharron,
           );
           await _firebaseService.addProducto(nuevoProducto);
         } else {
@@ -86,6 +89,7 @@ class _ProductoFormModalState extends State<ProductoFormModal> {
           widget.producto!.precio = double.tryParse(_precioCtrl.text.trim()) ?? 0.0;
           widget.producto!.observaciones = _observacionesCtrl.text.trim();
           widget.producto!.categoria = _selectedCategoria;
+          widget.producto!.esChicharron = _esChicharron;
           await _firebaseService.updateProducto(widget.producto!);
         }
 
